@@ -1,0 +1,55 @@
+{
+    "name": "eazy-api",
+    "version": "0.1.0",
+    "description": "Type-safe HTTP client built from runtime schema contracts",
+    "keywords": [
+        "api",
+        "fetch",
+        "http",
+        "standard-schema",
+        "type-safe",
+        "typescript"
+    ],
+    "homepage": "https://github.com/wutwind/eazy-api#readme",
+    "bugs": {
+        "url": "https://github.com/wutwind/eazy-api/issues"
+    },
+    "license": "MIT",
+    "author": "Anton Morozov <wutwind.dev@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/wutwind/eazy-api.git"
+    },
+    "files": [
+        "src",
+        "!src/**/*.spec.ts"
+    ],
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts"
+    },
+    "scripts": {
+        "check": "npm run typecheck && npm run lint && npm run fmt && npm test",
+        "fmt": "oxfmt --check .",
+        "fmt:fix": "oxfmt .",
+        "lint": "oxlint .",
+        "lint:fix": "oxlint --fix .",
+        "test": "node --test --test-isolation=none 'src/**/*.runtime.spec.ts'",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@praha/byethrow": "0.12.0",
+        "@standard-schema/spec": "1.1.0"
+    },
+    "devDependencies": {
+        "@types/node": "24.13.3",
+        "oxfmt": "0.63.0",
+        "oxlint": "1.78.0",
+        "oxlint-tsgolint": "7.0.2001",
+        "typescript": "7.0.2",
+        "valibot": "1.4.2"
+    },
+    "engines": {
+        "node": ">=24"
+    }
+}
