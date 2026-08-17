@@ -2,6 +2,9 @@ import type { Result } from '@praha/byethrow';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
 import type { ApiError } from '../errors/apiError.ts';
+import type { FetchImplementation } from '../transport/fetchTransport.ts';
+import type { TransportFailure, TransportInterceptor } from '../transport/interceptors.ts';
+import type { Transport } from '../transport/types.ts';
 
 export type Schema = StandardSchemaV1;
 
@@ -17,8 +20,11 @@ export interface QueryOptions {
     readonly arrayFormat?: QueryArrayFormat;
 }
 
+export type HeaderOptions = Readonly<Record<string, string | undefined>>;
+
 export interface CallOptions {
     readonly signal?: AbortSignal;
+    readonly headers?: HeaderOptions;
 }
 
 /**
@@ -170,3 +176,23 @@ export type EndpointMethod<TEndpoint extends AnyEndpoint> =
 export type ApiClient<TDefinition extends Record<string, AnyEndpoint>> = {
     [K in keyof TDefinition]: EndpointMethod<TDefinition[K]>;
 };
+
+interface SharedApiClientOptions {
+    readonly baseUrl: string;
+    readonly queryOptions?: QueryOptions;
+    readonly interceptors?: readonly TransportInterceptor[];
+    readonly headers?: HeaderOptions;
+}
+
+type ApiClientTransportOptions =
+    | { readonly fetch?: FetchImplementation; readonly transport?: never }
+    | { readonly fetch?: never; readonly transport: Transport<TransportFailure> };
+
+export type CreateApiClientOptions = SharedApiClientOptions & ApiClientTransportOptions;
+export type CreateApiOptions = CreateApiClientOptions;
+
+export interface ApiClientFactory {
+    readonly create: <const TDefinition extends Record<string, AnyEndpoint>>(
+        definition: TDefinition & ValidateApiDefinition<TDefinition>,
+    ) => ApiClient<TDefinition>;
+}

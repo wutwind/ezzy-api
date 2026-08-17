@@ -4,6 +4,13 @@ import { describe, it } from 'node:test';
 import { Result } from '@praha/byethrow';
 import * as v from 'valibot';
 
+import { ApiDefinitionExecutionError, InvalidEndpointPathError } from '../errors/apiDefinitionError.ts';
+import {
+    ClientConfigExecutionError,
+    ConflictingTransportOptionsError,
+    InvalidBaseUrlError,
+    InvalidClientOptionError,
+} from '../errors/clientConfigError.ts';
 import { createApi, createApiClient } from './createApi.ts';
 import { defineApi } from './defineApi.ts';
 
@@ -64,7 +71,10 @@ describe('createApi', () => {
 
         assert.equal(receivedUrl, '/api/courses/course%2F1?publish=true');
         assert.equal(receivedInit?.method, 'POST');
-        assert.deepEqual(receivedInit?.headers, { 'content-type': 'application/json' });
+        assert.deepEqual(receivedInit?.headers, {
+            accept: 'application/json',
+            'content-type': 'application/json',
+        });
         assert.equal(receivedInit?.body, '{"name":"TypeScript"}');
         assert.deepEqual(Result.unwrap(result), { id: 'course-1', name: 'TypeScript' });
     });
@@ -237,6 +247,34 @@ describe('createApi', () => {
         assert.equal(receivedUrl, '/api/items?tag=a,b');
     });
 
+    it('merges client and per-call headers before interceptors', async () => {
+        let observedHeaders: Readonly<Record<string, string>> | undefined;
+        const api = createApi(defineApi({ ping: { method: 'GET', path: '/ping', response: v.unknown() } }), {
+            baseUrl: '/api',
+            headers: { Authorization: 'client-token', 'X-Client': 'client' },
+            interceptors: [
+                async (request, next) => {
+                    observedHeaders = request.headers;
+                    return await next({
+                        ...request,
+                        headers: { ...request.headers, 'x-interceptor': 'yes' },
+                    });
+                },
+            ],
+            fetch: () => Promise.resolve(new Response('{}')),
+        });
+
+        await api.ping({
+            headers: { authorization: 'call-token', 'x-client': undefined, 'X-Call': 'call' },
+        });
+
+        assert.deepEqual(observedHeaders, {
+            accept: 'application/json',
+            authorization: 'call-token',
+            'x-call': 'call',
+        });
+    });
+
     it('returns AbortError without calling fetch for an already aborted request', async () => {
         let fetchCalls = 0;
         const controller = new AbortController();
@@ -256,7 +294,10 @@ describe('createApi', () => {
     });
 
     it('rejects ambiguous URL configuration when creating a client or API', () => {
-        assert.throws(() => createApiClient({ baseUrl: '/api?tenant=1' }), /baseUrl must not contain/u);
+        assert.throws(
+            () => createApiClient({ baseUrl: '/api?tenant=1' }),
+            (error) => error instanceof InvalidBaseUrlError && error.baseUrl === '/api?tenant=1',
+        );
         assert.throws(
             () =>
                 createApi(
@@ -264,8 +305,90 @@ describe('createApi', () => {
                     { invalid: { method: 'GET', path: '/items?all=1', response: v.unknown() } },
                     { baseUrl: '/api' },
                 ),
-            /path must not contain/u,
+            (error) =>
+                error instanceof InvalidEndpointPathError &&
+                error.endpoint === 'invalid' &&
+                error.path === '/items?all=1',
         );
+    });
+
+    it('throws a typed error when JavaScript passes fetch and transport together', () => {
+        assert.throws(
+            () =>
+                createApiClient({
+                    baseUrl: '/api',
+                    fetch: globalThis.fetch,
+                    transport: { request: () => Promise.resolve(Result.fail({ type: 'TransportError' })) },
+                } as never),
+            ConflictingTransportOptionsError,
+        );
+    });
+
+    it('validates client options during initialization', () => {
+        assert.throws(
+            () => createApiClient({ baseUrl: '/api', headers: { 'bad name': 'value' } }),
+            (error) => error instanceof InvalidClientOptionError && error.option === 'headers',
+        );
+        assert.throws(
+            () => createApiClient({ baseUrl: '/api', fetch: 42 } as never),
+            (error) => error instanceof InvalidClientOptionError && error.option === 'fetch',
+        );
+        assert.throws(
+            () => createApiClient({ baseUrl: '/api', interceptors: [null] } as never),
+            (error) => error instanceof InvalidClientOptionError && error.option === 'interceptors',
+        );
+    });
+
+    it('converts throwing configuration and definition proxies to constructor failures', () => {
+        const configCause = new Error('config proxy');
+        const config = new Proxy(
+            {},
+            {
+                get() {
+                    throw configCause;
+                },
+            },
+        );
+        const definitionCause = new Error('definition proxy');
+        const definition = new Proxy(
+            {},
+            {
+                ownKeys() {
+                    throw definitionCause;
+                },
+            },
+        );
+
+        assert.throws(
+            () => createApiClient(config as never),
+            (error) => error instanceof ClientConfigExecutionError && error.cause === configCause,
+        );
+
+        const client = createApiClient({ baseUrl: '/api' });
+        assert.throws(
+            () => client.create(definition as never),
+            (error) => error instanceof ApiDefinitionExecutionError && error.cause === definitionCause,
+        );
+    });
+
+    it('converts a throwing call-options getter to an endpoint failure', async () => {
+        const cause = new Error('signal getter');
+        const api = createApi(defineApi({ ping: { method: 'GET', path: '/ping', response: v.unknown() } }), {
+            baseUrl: '/api',
+        });
+        const options = new Proxy(
+            {},
+            {
+                getOwnPropertyDescriptor() {
+                    throw cause;
+                },
+            },
+        );
+
+        assert.deepEqual(Result.unwrapError(await api.ping(options)), {
+            type: 'TransportError',
+            cause,
+        });
     });
 
     it('returns TransportError from the public endpoint method', async () => {

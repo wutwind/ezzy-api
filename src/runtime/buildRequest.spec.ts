@@ -26,13 +26,16 @@ describe('buildRequest', () => {
                 query: { tag: ['api', 'typed'] },
                 body: { name: 'TypeScript' },
             },
-            { baseUrl: '/api/' },
+            {
+                baseUrl: '/api/',
+                headers: { accept: 'application/json', 'content-type': 'application/json' },
+            },
         );
 
         assert.deepEqual(Result.unwrap(result), {
             url: '/api/courses/course%2F1?tag=api&tag=typed',
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { accept: 'application/json', 'content-type': 'application/json' },
             body: '{"name":"TypeScript"}',
         });
     });
@@ -40,12 +43,19 @@ describe('buildRequest', () => {
     it('builds a request without optional sections', () => {
         const endpoint = { method: 'GET', path: '/ping', response } as const;
 
-        const result = buildRequest(endpoint, {}, { baseUrl: 'https://example.com/api' });
+        const result = buildRequest(
+            endpoint,
+            {},
+            {
+                baseUrl: 'https://example.com/api',
+                headers: { accept: 'application/json' },
+            },
+        );
 
         assert.deepEqual(Result.unwrap(result), {
             url: 'https://example.com/api/ping',
             method: 'GET',
-            headers: {},
+            headers: { accept: 'application/json' },
         });
     });
 
@@ -59,7 +69,7 @@ describe('buildRequest', () => {
 
         // Simulates a schema transform whose output is unsuitable for a URL segment.
         // @ts-expect-error validated output deliberately violates the endpoint schema
-        const result = buildRequest(endpoint, { params: { id: 1 } }, { baseUrl: '' });
+        const result = buildRequest(endpoint, { params: { id: 1 } }, { baseUrl: '', headers: {} });
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {
@@ -76,7 +86,7 @@ describe('buildRequest', () => {
             response,
         } as const;
 
-        const result = buildRequest(endpoint, { query: { page: Number.NaN } }, { baseUrl: '' });
+        const result = buildRequest(endpoint, { query: { page: Number.NaN } }, { baseUrl: '', headers: {} });
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {
@@ -95,7 +105,7 @@ describe('buildRequest', () => {
         cyclic.self = cyclic;
 
         // @ts-expect-error validated output deliberately violates the endpoint schema
-        const result = buildRequest(endpoint, { body: cyclic }, { baseUrl: '' });
+        const result = buildRequest(endpoint, { body: cyclic }, { baseUrl: '', headers: {} });
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {

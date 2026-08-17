@@ -1,10 +1,10 @@
 import { Result } from '@praha/byethrow';
 
 import { type AbortError, createAbortError } from '../errors/abortError.ts';
-import { type TransportError, createTransportError } from './fetchTransport.errors.ts';
+import { type TransportError, createTransportError } from './transportError.ts';
 import type { Transport, TransportHeaders, TransportRequest, TransportResponse } from './types.ts';
 
-export type { TransportError } from './fetchTransport.errors.ts';
+export type { TransportError } from './transportError.ts';
 
 export type FetchImplementation = (input: string, init: RequestInit) => Promise<Response>;
 

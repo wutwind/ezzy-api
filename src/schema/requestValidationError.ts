@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 
-export type RequestSection = 'params' | 'query' | 'body';
+export type RequestSection = 'params' | 'query' | 'body' | 'headers';
 
 export interface RequestValidationError {
     readonly type: 'RequestValidationError';

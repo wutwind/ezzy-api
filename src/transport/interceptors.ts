@@ -1,7 +1,7 @@
 import { Result } from '@praha/byethrow';
 
 import type { AbortError } from '../errors/abortError.ts';
-import { createTransportError, type TransportError } from './fetchTransport.errors.ts';
+import { createTransportError, type TransportError } from './transportError.ts';
 import type { Transport, TransportRequest, TransportResponse } from './types.ts';
 
 export type TransportFailure = TransportError | AbortError;

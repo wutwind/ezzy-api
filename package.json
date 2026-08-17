@@ -50,7 +50,7 @@
         "prepublishOnly": "npm run check",
         "release:tag": "node scripts/release-tag.mjs",
         "release:validate": "node scripts/validate-release.mjs",
-        "test": "node --test --test-isolation=none 'src/**/*.runtime.spec.ts'",
+        "test": "node --test --test-isolation=none 'src/**/*.spec.ts'",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

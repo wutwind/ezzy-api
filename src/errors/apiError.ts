@@ -1,5 +1,5 @@
-import type { RequestValidationError } from '../schema/requestValidation.errors.ts';
-import type { TransportError } from '../transport/fetchTransport.errors.ts';
+import type { RequestValidationError } from '../schema/requestValidationError.ts';
+import type { TransportError } from '../transport/transportError.ts';
 import type { AbortError } from './abortError.ts';
 import type { HttpError } from './httpError.ts';
 import type { ResponseValidationError } from './responseValidationError.ts';

@@ -5,9 +5,9 @@ import {
     type RequestSection,
     type RequestValidationError,
     createRequestValidationError,
-} from './requestValidation.errors.ts';
+} from './requestValidationError.ts';
 
-export type { RequestSection, RequestValidationError } from './requestValidation.errors.ts';
+export type { RequestSection, RequestValidationError } from './requestValidationError.ts';
 
 type SchemaOutputPart<Key extends PropertyKey, TSchema> = TSchema extends Schema
     ? { [K in Key]: SchemaOutput<TSchema> }
