@@ -1,12 +1,13 @@
 services:
-    dev:
-        build:
-            context: .
-            args:
-                USER: $USER
-                USER_ID: $USER_ID
-        working_dir: /workspace
-        volumes:
-            - .:/workspace
-        stdin_open: true
-        tty: true
+  dev:
+    build:
+      context: .
+      args:
+        USER: $USER
+        USER_ID: $USER_ID
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - ${HOME}/.ssh:/home/${USER}/.ssh:ro
+    stdin_open: true
+    tty: true

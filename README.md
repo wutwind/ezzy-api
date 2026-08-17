@@ -34,6 +34,10 @@ listed by `make help`. To open an interactive shell in the same environment, run
 make run
 ```
 
+Docker Compose mounts the host `~/.ssh` directory read-only into the container user's home. This
+allows release checks such as `git ls-remote origin` to use the same SSH keys and `known_hosts`
+without copying credentials into the image.
+
 The underlying Docker Compose commands remain available directly when needed.
 
 To work without Docker, use Node.js 24 and install the locked dependencies:

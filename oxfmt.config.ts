@@ -7,4 +7,12 @@ export default defineConfig({
     semi: true,
     insertFinalNewline: true,
     sortImports: true,
+    overrides: [
+        {
+            files: ['*.{yml,yaml}'],
+            options: {
+                tabWidth: 2,
+            },
+        },
+    ],
 });
