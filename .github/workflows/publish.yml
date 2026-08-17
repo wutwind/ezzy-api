@@ -1,0 +1,61 @@
+name: Publish package
+
+on:
+    push:
+        tags:
+            - 'v*'
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        environment: npm-production
+        permissions:
+            contents: read
+            id-token: write
+        outputs:
+            tarball: ${{ steps.pack.outputs.tarball }}
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: 24
+                  registry-url: https://registry.npmjs.org
+                  package-manager-cache: false
+            - run: npm ci
+            - run: npm run release:validate -- "${GITHUB_REF_NAME}"
+            - run: npm run check
+            - run: npm run build
+            - id: pack
+              run: |
+                  npm pack --json --ignore-scripts > pack.json
+                  TARBALL=$(node -e "const p=require('./pack.json'); process.stdout.write(p[0].filename)")
+                  node scripts/smoke-package.mjs "$TARBALL"
+                  echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+            - name: Ensure version is unpublished
+              run: |
+                  PACKAGE_VERSION=$(node -p "require('./package.json').version")
+                  if npm view "@wutwind/ezzy-api@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+                      echo "@wutwind/ezzy-api@${PACKAGE_VERSION} is already published" >&2
+                      exit 1
+                  fi
+            - run: npm publish "${{ steps.pack.outputs.tarball }}" --access public
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: npm-package
+                  path: ${{ steps.pack.outputs.tarball }}
+                  if-no-files-found: error
+
+    github-release:
+        needs: publish
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  name: npm-package
+            - env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh release create "${GITHUB_REF_NAME}" ./*.tgz --generate-notes --verify-tag

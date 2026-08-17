@@ -1,5 +1,5 @@
 import { Result } from '@praha/byethrow';
-import { createApi, defineApi } from 'eazy-api';
+import { createApi, defineApi } from '@wutwind/ezzy-api';
 import * as v from 'valibot';
 
 const CourseSchema = v.object({

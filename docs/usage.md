@@ -1,6 +1,6 @@
-# Using eazy-api
+# Using @wutwind/ezzy-api
 
-This guide covers the public API of `eazy-api`: declaring contracts, creating clients, making
+This guide covers the public API of `@wutwind/ezzy-api`: declaring contracts, creating clients, making
 requests, handling failures, configuring query serialization, adding transport interceptors,
 cancelling calls, and supplying a custom transport.
 
@@ -10,7 +10,7 @@ The current package targets Node.js 24 with Fetch and `AbortController`. It uses
 so the examples use Valibot, but another Standard Schema-compatible validator can be used instead.
 
 ```bash
-npm install eazy-api valibot @praha/byethrow
+npm install @wutwind/ezzy-api valibot @praha/byethrow
 ```
 
 `@praha/byethrow` is shown as a direct dependency because application code normally imports its
@@ -18,7 +18,7 @@ npm install eazy-api valibot @praha/byethrow
 
 ## Mental model
 
-An eazy-api request passes through the following pipeline:
+An @wutwind/ezzy-api request passes through the following pipeline:
 
 ```text
 typed call options
@@ -39,7 +39,7 @@ not throw for expected request, network, HTTP, or response-validation failures. 
 ## 1. Define schemas and an API contract
 
 ```ts
-import { defineApi } from 'eazy-api';
+import { defineApi } from '@wutwind/ezzy-api';
 import * as v from 'valibot';
 
 const UserSchema = v.object({
@@ -132,7 +132,7 @@ Paths without `:parameters` must not declare a `params` schema.
 Use `createApi()` for a standalone API:
 
 ```ts
-import { createApi } from 'eazy-api';
+import { createApi } from '@wutwind/ezzy-api';
 
 export const userApi = createApi(userApiDefinition, {
     baseUrl: '/api',
@@ -251,7 +251,7 @@ Create one reusable client in the application's composition root:
 
 ```ts
 // api/client.ts
-import { createApiClient } from 'eazy-api';
+import { createApiClient } from '@wutwind/ezzy-api';
 
 export const apiClient = createApiClient({
     baseUrl: '/api',
@@ -342,7 +342,7 @@ Serialization details:
 An interceptor wraps a serialized `TransportRequest` and the raw `TransportResponse`:
 
 ```ts
-import type { TransportInterceptor } from 'eazy-api';
+import type { TransportInterceptor } from '@wutwind/ezzy-api';
 
 const timingInterceptor: TransportInterceptor = async (request, next) => {
     const startedAt = performance.now();
@@ -385,7 +385,7 @@ Transport interceptors see the response before a non-2xx status becomes `HttpErr
 
 ```ts
 import { Result } from '@praha/byethrow';
-import type { TransportInterceptor } from 'eazy-api';
+import type { TransportInterceptor } from '@wutwind/ezzy-api';
 
 const unauthorizedInterceptor: TransportInterceptor = async (request, next) => {
     const result = await next(request);
@@ -398,7 +398,7 @@ const unauthorizedInterceptor: TransportInterceptor = async (request, next) => {
 };
 ```
 
-Keep routing outside the library. Calling `window.location` inside eazy-api would make the client
+Keep routing outside the library. Calling `window.location` inside @wutwind/ezzy-api would make the client
 browser-specific and unsuitable for SSR. Applications with many concurrent `401` responses should
 deduplicate navigation or token refresh inside their interceptor.
 
@@ -487,7 +487,7 @@ if (Result.isSuccess(result)) {
 A complete handler can narrow every variant:
 
 ```ts
-import type { ApiError } from 'eazy-api';
+import type { ApiError } from '@wutwind/ezzy-api';
 
 function handleApiError(error: ApiError): void {
     switch (error.type) {
@@ -570,7 +570,7 @@ Use a custom transport when Fetch is insufficient, for example for browser uploa
 
 ```ts
 import { Result } from '@praha/byethrow';
-import { createApiClient, type Transport, type TransportFailure } from 'eazy-api';
+import { createApiClient, type Transport, type TransportFailure } from '@wutwind/ezzy-api';
 
 const transport: Transport<TransportFailure> = {
     request: async (request) => {

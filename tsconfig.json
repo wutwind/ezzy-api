@@ -6,6 +6,9 @@
         "target": "ES2022",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
+        "paths": {
+            "@wutwind/ezzy-api": ["./src/index.ts"]
+        },
         "skipLibCheck": true,
         "types": ["node"]
     },

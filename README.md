@@ -1,4 +1,4 @@
-# eazy-api
+# @wutwind/ezzy-api
 
 A TypeScript library for declaring HTTP API contracts from runtime schemas and creating a
 type-safe fetch client from those contracts.
@@ -6,12 +6,12 @@ type-safe fetch client from those contracts.
 The schema is the single source of truth for request and response types. The core uses Standard
 Schema, so compatible validators such as Valibot can provide runtime validation and type inference.
 
-For a complete application-oriented guide, see [Using eazy-api](docs/usage.md).
+For a complete application-oriented guide, see [Using @wutwind/ezzy-api](docs/usage.md).
 
 ## Installation
 
 ```bash
-npm install eazy-api valibot @praha/byethrow
+npm install @wutwind/ezzy-api valibot @praha/byethrow
 ```
 
 The current package requires Node.js 24. Valibot may be replaced with another Standard
@@ -53,7 +53,7 @@ Create runtime schemas and pass the endpoint map to `defineApi()`:
 
 ```ts
 import * as v from 'valibot';
-import { defineApi } from 'eazy-api';
+import { defineApi } from '@wutwind/ezzy-api';
 
 const CourseSchema = v.object({
     id: v.string(),
@@ -107,7 +107,7 @@ these checks.
 
 ```ts
 import { Result } from '@praha/byethrow';
-import { createApi } from 'eazy-api';
+import { createApi } from '@wutwind/ezzy-api';
 
 const api = createApi(apiDefinition, {
     baseUrl: '/api',
@@ -219,6 +219,7 @@ validation functions remain internal details of the client pipeline.
 - `src/index.ts` is the public entry point.
 - `examples/basic.ts` demonstrates valid usage and response inference.
 - `docs/todo.md` records open design questions for the next milestone.
+- `docs/releasing.md` defines the versioning, tagging, and npm publication process.
 
 ## Current limitations
 
