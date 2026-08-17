@@ -21,19 +21,29 @@
         "url": "git+https://github.com/wutwind/eazy-api.git"
     },
     "files": [
-        "src",
-        "!src/**/*.spec.ts"
+        "dist",
+        "docs/usage.md",
+        "CHANGELOG.md"
     ],
     "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "exports": {
-        ".": "./src/index.ts"
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
     },
     "scripts": {
+        "build": "tsc --project tsconfig.build.json",
         "check": "npm run typecheck && npm run lint && npm run fmt && npm test",
         "fmt": "oxfmt --check .",
         "fmt:fix": "oxfmt .",
         "lint": "oxlint .",
         "lint:fix": "oxlint --fix .",
+        "prepack": "npm run build",
+        "prepublishOnly": "npm run check",
         "test": "node --test --test-isolation=none 'src/**/*.runtime.spec.ts'",
         "typecheck": "tsc --noEmit"
     },
