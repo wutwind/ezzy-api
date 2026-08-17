@@ -281,6 +281,32 @@ Create separate clients when different backends require different base URLs or c
 `createApi(definition, options)` is a shorthand for creating one client and immediately binding one
 definition.
 
+### Headers
+
+Requests start with `accept: application/json`; requests with a body also start with
+`content-type: application/json`.
+
+| Layer       | Meaning                                           |
+| ----------- | ------------------------------------------------- |
+| Built-in    | JSON `accept`, conditional JSON `content-type`    |
+| Client      | Headers shared by APIs created from the client    |
+| Call        | Per-request values such as an authorization token |
+| Interceptor | Final transport-level changes                     |
+
+```ts
+await userApi.getUser({
+    params: { id: userId },
+    headers: { authorization: `Bearer ${requestToken}` },
+});
+```
+
+Names are normalized to lowercase. A later `undefined` value removes an earlier value. Only own,
+enumerable entries in a header record are used; inherited entries are ignored and own value getters
+are evaluated inside the guarded request-construction boundary. Accessor properties for the
+top-level call options `headers` and `signal` are not invoked. Invalid names, NUL/CR/LF-containing
+values, and throwing getters or proxies return a `RequestValidationError` for `headers`.
+Browser-forbidden names are left to the Fetch runtime because availability differs by environment.
+
 ## 4. Configure query-array serialization
 
 Supported formats are:

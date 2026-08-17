@@ -8,7 +8,7 @@ Depends on: 001–002
 
 - Resolve or remove completed sections in `docs/todo.md`.
 - Rewrite README and `docs/usage.md` limitations.
-- Add migration examples for Result-returning constructors.
+- Document typed constructor exceptions and no-throw endpoint execution.
 - Changelog: constructor API and Accept default.
 - Run typecheck, lint, formatting, runtime tests, build, and package smoke checks on the documented
   CI versions.

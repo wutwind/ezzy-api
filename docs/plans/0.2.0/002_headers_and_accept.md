@@ -1,6 +1,6 @@
 # 002 — Client/call headers and JSON Accept
 
-Status: **ready after 001**
+Status: **implemented**
 Branch: `feat/headers`
 Depends on: 001
 Release request: [`../0.2.0.md`](../0.2.0.md)
@@ -49,7 +49,8 @@ Inherited properties and getters must have explicitly tested behavior.
 - body-derived content type is absent without a body and overridable with a body;
 - default Accept is present and can be replaced or removed;
 - interceptor observes the final merged set;
-- invalid header input returns a typed failure and never throws.
+- invalid client headers throw during initialization; invalid call headers return a typed endpoint
+  failure.
 
 ## Documentation
 
