@@ -211,8 +211,10 @@ declaration order and response handlers run in reverse order. They can add heade
 codes such as `401`, and invoke `next` again for retry policies. Application-specific side effects,
 such as navigating to a login page, belong in an interceptor supplied by the application.
 
-Constructors fail immediately with typed configuration or definition exceptions. Endpoint execution
-failures remain typed `ApiError` Results.
+Client creation is intentionally fail-fast: invalid configuration or API definitions throw one of
+the exported `ClientConfigError` or `ApiDefinitionError` exception types. This keeps the created API
+convenient to use without an initialization `Result` to unwrap. Endpoint execution is different:
+expected request, transport, HTTP, and response failures remain typed `ApiError` Results.
 `createApi(definition, options)` remains the shorthand for creating a single API without retaining
 a reusable client.
 
@@ -221,7 +223,7 @@ a reusable client.
 The package exposes three runtime functions:
 
 - `defineApi()` declares and type-checks an endpoint contract;
-- `createApi()` creates the runtime client.
+- `createApi()` creates the runtime client;
 - `createApiClient()` creates reusable transport configuration for multiple API definitions.
 
 It also exposes the supporting API, query, call-option, transport, and interceptor types required
