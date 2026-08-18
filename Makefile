@@ -6,7 +6,7 @@ export USER_ID
 COMPOSE := docker compose
 RUN := $(COMPOSE) run --rm dev
 
-.PHONY: help setup check lint fmt fmt-fix test typecheck run
+.PHONY: help setup check lint fmt fmt-fix test typecheck release-tag run
 
 help:
 	@echo "Available commands:"
@@ -17,6 +17,7 @@ help:
 	@echo "  make fmt-fix    Format files"
 	@echo "  make test       Run runtime tests"
 	@echo "  make typecheck  Run TypeScript checks"
+	@echo "  make release-tag  Validate and create the version tag from main"
 	@echo "  make run        Open a shell in the container"
 
 setup:
@@ -39,6 +40,9 @@ test:
 
 typecheck:
 	$(RUN) npm run typecheck
+
+release-tag:
+	$(RUN) npm run release:tag
 
 run:
 	$(RUN) bash
