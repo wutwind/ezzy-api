@@ -5,9 +5,9 @@ import {
     createInvalidPathParameterError,
     createMissingPathParameterError,
     createUnexpectedPathParameterError,
-} from './buildPath.errors.ts';
+} from './pathError.ts';
 
-export type { BuildPathError } from './buildPath.errors.ts';
+export type { BuildPathError } from './pathError.ts';
 
 const PATH_PARAM_PATTERN = /:([^/]+)/gu;
 

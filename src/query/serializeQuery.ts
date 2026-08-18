@@ -5,9 +5,9 @@ import {
     type SerializeQueryError,
     createInvalidQueryArrayFormatError,
     createInvalidQueryValueError,
-} from './serializeQuery.errors.ts';
+} from './queryError.ts';
 
-export type { SerializeQueryError } from './serializeQuery.errors.ts';
+export type { SerializeQueryError } from './queryError.ts';
 
 export type QueryPrimitive = string | number | boolean;
 export type QueryValue = QueryPrimitive | readonly QueryPrimitive[] | undefined;

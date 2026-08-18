@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { createApi, defineApi, type ApiClient } from '../index.ts';
+import { createApi, defineApi, type ApiClient } from '../src/index.ts';
 
 const OkSchema = v.object({
     ok: v.boolean(),
@@ -89,6 +89,10 @@ declare const api: ApiClient<typeof definition>;
 api.ping();
 api.ping({});
 api.ping({ signal: new AbortController().signal });
+api.ping({ headers: { authorization: 'Bearer token', accept: undefined } });
+
+// @ts-expect-error header values must be strings or undefined
+api.ping({ headers: { authorization: 42 } });
 
 // Case B: fully optional query.
 api.list();
@@ -239,8 +243,12 @@ defineApi({
     },
 });
 
-// Case G: createApi validates inline definitions exactly like defineApi.
-createApi({ ping: { method: 'GET', path: '/ping', response: OkSchema } }, { baseUrl: '/api' });
+// Case G: createApi validates inline definitions and returns an API directly.
+const created = createApi(
+    { ping: { method: 'GET', path: '/ping', response: OkSchema } },
+    { baseUrl: '/api' },
+);
+created.ping();
 
 createApi(
     {

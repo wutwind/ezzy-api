@@ -43,11 +43,14 @@ version. Feature and bug-fix work should be committed separately.
 
 ## 2. Create the local version tag
 
-A release script will be exposed as:
+A release script is exposed through Make:
 
 ```bash
-npm run release:tag
+make release-tag
 ```
+
+The target runs `npm run release:tag` in the project development container, where it validates the
+current Git branch and creates the annotated tag.
 
 The script must read the version from `package.json`; the version should not be passed separately.
 Before creating a tag, it must verify that:

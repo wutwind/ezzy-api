@@ -3,9 +3,12 @@ import { Result } from '@praha/byethrow';
 import {
     type JsonBodySerializationError,
     createJsonBodySerializationError,
-} from './serializeJsonBody.errors.ts';
+} from './jsonBodySerializationError.ts';
 
-export type { JsonBodySerializationError, JsonBodySerializationReason } from './serializeJsonBody.errors.ts';
+export type {
+    JsonBodySerializationError,
+    JsonBodySerializationReason,
+} from './jsonBodySerializationError.ts';
 
 const stringifyJson: (value: unknown) => string | undefined = JSON.stringify;
 

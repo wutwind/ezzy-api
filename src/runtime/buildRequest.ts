@@ -6,15 +6,17 @@ import { serializeQuery, type QueryValues } from '../query/serializeQuery.ts';
 import {
     type RequestValidationError,
     createRequestConstructionError,
-} from '../schema/requestValidation.errors.ts';
+} from '../schema/requestValidationError.ts';
 import type { ValidatedEndpointRequest } from '../schema/validateRequest.ts';
-import type { TransportRequest } from '../transport/types.ts';
+import type { TransportHeaders, TransportRequest } from '../transport/types.ts';
+import { createOptions, type OptionsBuilder } from './createOptions.ts';
 import { serializeJsonBody } from './serializeJsonBody.ts';
 
 export interface BuildRequestOptions {
     readonly baseUrl: string;
     readonly queryOptions?: QueryOptions;
     readonly signal?: AbortSignal;
+    readonly headers: TransportHeaders;
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -73,11 +75,17 @@ function addValidatedBody(
     }
 
     return Result.succeed({
-        url: transportRequest.url,
-        method: transportRequest.method,
-        headers: { 'content-type': 'application/json' },
+        ...transportRequest,
         body: result.value,
     });
+}
+
+function withSignal(signal: AbortSignal | undefined): OptionsBuilder<TransportRequest> {
+    return (options) => {
+        if (signal !== undefined) {
+            options.signal = signal;
+        }
+    };
 }
 
 /** Builds the internal transport request from schema-validated request outputs. */
@@ -99,10 +107,10 @@ export function buildRequest<TEndpoint extends AnyEndpoint>(
         return query;
     }
 
-    return addValidatedBody(endpoint, requestRecord, {
-        url: appendQuery(joinUrl(options.baseUrl, path.value), query.value),
-        method: endpoint.method,
-        headers: {},
-        ...(options.signal === undefined ? {} : { signal: options.signal }),
-    });
+    const url = appendQuery(joinUrl(options.baseUrl, path.value), query.value);
+    const transportRequest = createOptions<TransportRequest>(
+        { url, method: endpoint.method, headers: options.headers },
+        withSignal(options.signal),
+    );
+    return addValidatedBody(endpoint, requestRecord, transportRequest);
 }

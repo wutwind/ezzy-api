@@ -281,6 +281,59 @@ Create separate clients when different backends require different base URLs or c
 `createApi(definition, options)` is a shorthand for creating one client and immediately binding one
 definition.
 
+### Initialization errors
+
+`createApiClient()`, `createApi()`, and `client.create()` return a usable client or API directly.
+They do not return a `Result`. Invalid configuration and definitions are programmer or deployment
+errors, so initialization fails immediately with a typed exception:
+
+```ts
+import { InvalidBaseUrlError, createApi } from '@wutwind/ezzy-api';
+
+try {
+    const api = createApi(userApiDefinition, { baseUrl: configuredBaseUrl });
+    startApplication(api);
+} catch (error) {
+    if (error instanceof InvalidBaseUrlError) {
+        console.error('Invalid API base URL:', error.baseUrl);
+    }
+
+    throw error;
+}
+```
+
+The exported `ClientConfigError` union covers invalid client options, and `ApiDefinitionError`
+covers invalid endpoint definitions. Catch these at the application's composition boundary only
+when configuration is dynamic or you can provide a meaningful startup diagnostic. Once creation
+succeeds, the API is guaranteed to be usable; endpoint methods return `Result` values for expected
+runtime failures as described in section 7.
+
+### Headers
+
+Requests start with `accept: application/json`; requests with a body also start with
+`content-type: application/json`.
+
+| Layer       | Meaning                                           |
+| ----------- | ------------------------------------------------- |
+| Built-in    | JSON `accept`, conditional JSON `content-type`    |
+| Client      | Headers shared by APIs created from the client    |
+| Call        | Per-request values such as an authorization token |
+| Interceptor | Final transport-level changes                     |
+
+```ts
+await userApi.getUser({
+    params: { id: userId },
+    headers: { authorization: `Bearer ${requestToken}` },
+});
+```
+
+Names are normalized to lowercase. A later `undefined` value removes an earlier value. Only own,
+enumerable entries in a header record are used; inherited entries are ignored and own value getters
+are evaluated inside the guarded request-construction boundary. Accessor properties for the
+top-level call options `headers` and `signal` are not invoked. Invalid names, NUL/CR/LF-containing
+values, and throwing getters or proxies return a `RequestValidationError` for `headers`.
+Browser-forbidden names are left to the Fetch runtime because availability differs by environment.
+
 ## 4. Configure query-array serialization
 
 Supported formats are:
@@ -455,8 +508,8 @@ An already-aborted request does not call Fetch. A request aborted during Fetch r
 Interceptors must preserve `request.signal` when creating a replacement request. Retry
 interceptors should stop when the signal is aborted.
 
-Timeout configuration is not built in yet. Applications can currently create an
-`AbortController` and abort it from their own timer.
+Timeout configuration is not built in yet. Applications can pass `AbortSignal.timeout(ms)`, or use
+`AbortSignal.any()` when a timeout and caller-controlled cancellation must be combined.
 
 ## 7. Handle results and errors
 
@@ -518,8 +571,8 @@ function handleApiError(error: ApiError): void {
 }
 ```
 
-Request validation errors include `section: 'params' | 'query' | 'body'`. Response validation
-reasons are:
+Request validation errors include `section: 'params' | 'query' | 'body' | 'headers'`. Response
+validation reasons are:
 
 - `InvalidJson` — a successful non-empty response was not valid JSON;
 - `SchemaValidation` — decoded JSON did not satisfy the response schema;
@@ -617,7 +670,6 @@ current public runtime contract yet.
 
 The current version does not provide first-class configuration for:
 
-- per-client or per-call headers outside interceptors;
 - timeouts;
 - built-in retry or authentication policies;
 - multipart and binary request bodies;

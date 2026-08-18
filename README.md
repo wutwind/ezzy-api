@@ -173,7 +173,7 @@ const createdResult = await api.createCourse({
 });
 ```
 
-## Shared client, query format, and interceptors
+## Shared client, headers, query format, and interceptors
 
 Use `createApiClient()` when several API definitions share transport configuration. Query array
 format defaults and transport interceptors apply to every API created by that client:
@@ -189,6 +189,20 @@ const userApi = client.create(userApiDefinition);
 const teamApi = client.create(teamApiDefinition);
 ```
 
+Every request starts with `accept: application/json`. Client headers apply next, call headers can
+override them for per-request credentials, and interceptors receive the resolved set:
+
+```ts
+await userApi.getUser({
+    params: { id },
+    headers: { authorization: `Bearer ${token}` },
+});
+```
+
+Header precedence is built-in defaults, client, call, then interceptor. Names are normalized to
+lowercase, and an `undefined` value removes an earlier header. JSON `content-type` is added only for
+requests with a body and may also be overridden or removed.
+
 An endpoint can override the shared query array format with `queryOptions`. Supported formats are
 `repeat`, `brackets`, and `comma`; the built-in default is `repeat`.
 
@@ -197,6 +211,10 @@ declaration order and response handlers run in reverse order. They can add heade
 codes such as `401`, and invoke `next` again for retry policies. Application-specific side effects,
 such as navigating to a login page, belong in an interceptor supplied by the application.
 
+Client creation is intentionally fail-fast: invalid configuration or API definitions throw one of
+the exported `ClientConfigError` or `ApiDefinitionError` exception types. This keeps the created API
+convenient to use without an initialization `Result` to unwrap. Endpoint execution is different:
+expected request, transport, HTTP, and response failures remain typed `ApiError` Results.
 `createApi(definition, options)` remains the shorthand for creating a single API without retaining
 a reusable client.
 
@@ -205,7 +223,7 @@ a reusable client.
 The package exposes three runtime functions:
 
 - `defineApi()` declares and type-checks an endpoint contract;
-- `createApi()` creates the runtime client.
+- `createApi()` creates the runtime client;
 - `createApiClient()` creates reusable transport configuration for multiple API definitions.
 
 It also exposes the supporting API, query, call-option, transport, and interceptor types required
@@ -218,8 +236,8 @@ validation functions remain internal details of the client pipeline.
 - `src/core/defineApi.ts` contains the API definition helper.
 - `src/path/buildPath.ts` contains URL path interpolation.
 - `src/query/serializeQuery.ts` contains query string serialization.
-- `*.runtime.spec.ts` files contain colocated Node tests.
-- `*.types.spec.ts` files contain colocated compile-time tests.
+- `*.spec.ts` files under `src` contain colocated Node tests.
+- `type-tests/` contains compile-time public-contract tests.
 - `src/index.ts` is the public entry point.
 - `examples/basic.ts` demonstrates valid usage and response inference.
 - `docs/todo.md` records open design questions for the next milestone.
@@ -227,9 +245,9 @@ validation functions remain internal details of the client pipeline.
 
 ## Current limitations
 
-The current client supports fetch with JSON request and response bodies, cancellation, and
-transport interceptors. It does not yet include first-class request-header configuration, timeouts,
-retry or authentication policies, multipart bodies, transfer progress, streaming, optional path
+The current client supports fetch with JSON request and response bodies, headers, cancellation, and
+transport interceptors. It does not yet include convenience timeouts, built-in retry or
+authentication policies, multipart bodies, transfer progress, streaming, optional path
 parameters, wildcards, or catch-all paths. Empty successful responses are passed to the response
 schema as `undefined`, so the contract must explicitly accept them.
 

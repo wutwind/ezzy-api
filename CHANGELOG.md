@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Endpoint execution now catches recoverable platform and extension exceptions and returns typed
+  failures. Invalid constructor configuration and API definitions fail immediately with typed
+  exceptions.
+- Requests now send `accept: application/json` by default and support normalized client-level and
+  call-level headers with explicit override/removal semantics.
+
 ## [0.1.0] - 2026-08-17
 
 ### Added

@@ -25,6 +25,8 @@ export default defineConfig({
             },
         ],
         'no-ternary': 'off',
+        eqeqeq: ['error', 'always', { null: 'ignore' }],
+        'no-eq-null': 'off',
         'no-undefined': 'off',
         'init-declarations': 'off',
         'no-magic-numbers': 'off',
