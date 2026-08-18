@@ -7,6 +7,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-18
+
 ### Changed
 
 - Endpoint execution now catches recoverable platform and extension exceptions and returns typed
@@ -27,3 +29,4 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Compiled JavaScript and TypeScript declarations for npm consumers.
 
 [0.1.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.1.0
+[0.2.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.2.0
