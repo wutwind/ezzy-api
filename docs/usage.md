@@ -312,7 +312,8 @@ runtime failures as described in section 8.
 
 Requests start with `accept: application/json`; requests with a JSON body also start with
 `content-type: application/json`. Multipart and stream bodies carry no default content type (see
-section 7).
+section 7). A later layer may set `content-type` for a stream. For multipart the value is removed
+again after the client and call layers, because Fetch has to choose the boundary.
 
 | Layer       | Meaning                                           |
 | ----------- | ------------------------------------------------- |
@@ -540,8 +541,9 @@ export const uploadApiDefinition = defineApi({
 ### Multipart bodies
 
 `multipartBody()` accepts a `FormData` instance or a plain record of fields. Record values may be
-strings, numbers, booleans, or `Blob`s; numbers and booleans are converted with `String()`, and
-`undefined` fields are skipped. Blobs pass by reference, so large files are not copied:
+strings, finite numbers, booleans, or `Blob`s. Finite numbers and booleans are converted with
+`String()`. `NaN` and infinities fail validation of the `body` section, and `null` and `undefined`
+fields are skipped. Blobs pass by reference, so large files are not copied:
 
 ```ts
 const result = await uploadApi.uploadAvatar({
@@ -553,9 +555,11 @@ const result = await uploadApi.uploadAvatar({
 });
 ```
 
-Fetch sets `content-type: multipart/form-data; boundary=...` itself. Do not set a multipart
-content type manually without a boundary. Use `FormData` directly when you need repeated field
-names or explicit file names:
+Fetch sets `content-type: multipart/form-data; boundary=...` itself. Client headers, call headers,
+and a `content-type` an interceptor puts back are removed while the body stays `FormData`, so a
+shared `application/json` header cannot replace the boundary. A pre-encoded body with its own
+boundary belongs on `streamBody()`. Use `FormData` directly when you need repeated field names or
+explicit file names:
 
 ```ts
 const form = new FormData();
@@ -732,6 +736,10 @@ The current `TransportRequest.body` is a `string`, `FormData`, or `ReadableStrea
 `TransportResponse.body` remains a string. Binary responses, streaming responses, and
 transfer-progress callbacks are intentionally not part of the current public runtime contract yet.
 
+While the body is `FormData`, leave `content-type` unset. The built-in Fetch transport drops it so
+Fetch can set the boundary. A custom transport has to do the same. Pre-encoded bytes with an
+explicit media type use `streamBody()`.
+
 ## 12. URL and body behavior
 
 - `baseUrl` may be absolute (`https://api.example.com`) or relative (`/api`).
@@ -741,7 +749,8 @@ transfer-progress callbacks are intentionally not part of the current public run
 - Query keys and values are percent-encoded.
 - Schema-declared request bodies are serialized with `JSON.stringify`.
 - A JSON body adds `content-type: application/json`; multipart and stream bodies do not.
-- Multipart bodies are sent as `multipart/form-data`; Fetch sets the boundary content type.
+- Multipart bodies are sent as `multipart/form-data`. `content-type` from client headers, call
+  headers, and interceptors is removed while the body is `FormData`, and Fetch sets the boundary.
 - Stream bodies are sent chunked, without `Content-Length`.
 - Every non-empty successful response is parsed as JSON before schema validation.
 - Every non-2xx status becomes `HttpError`, including redirects returned to the transport.

@@ -207,8 +207,9 @@ await api.uploadBackup({
 });
 ```
 
-Fetch sets the multipart boundary itself; stream bodies have no default content type, so supply it
-through headers. Cancellation through `signal` works for uploads as for any other call. See
+Fetch sets the multipart boundary itself. A `content-type` from client or call headers is dropped
+for a multipart body. Stream bodies have no default content type, so supply it through headers.
+Cancellation through `signal` works for uploads as for any other call. See
 [Using @wutwind/ezzy-api](docs/usage.md) for details.
 
 ## Shared client, headers, query format, and interceptors

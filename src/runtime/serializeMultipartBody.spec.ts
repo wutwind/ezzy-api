@@ -30,21 +30,24 @@ describe('serializeMultipartBody', () => {
         assert.equal(await received.text(), 'file-bytes');
     });
 
-    it('skips undefined record fields', () => {
-        const result = serializeMultipartBody({ title: 'avatar', subtitle: undefined });
+    it('skips nullish record fields', () => {
+        const result = serializeMultipartBody({ title: 'avatar', subtitle: undefined, note: null });
 
         const form = Result.unwrap(result);
         assert.equal(form.get('title'), 'avatar');
         assert.equal(form.has('subtitle'), false);
+        assert.equal(form.has('note'), false);
     });
 
     it('fails when the body is missing', () => {
-        const result = serializeMultipartBody(undefined);
+        for (const body of [undefined, null]) {
+            const result = serializeMultipartBody(body);
 
-        assert.deepEqual(Result.unwrapError(result), {
-            type: 'MultipartBodySerializationError',
-            reason: 'MissingBody',
-        });
+            assert.deepEqual(Result.unwrapError(result), {
+                type: 'MultipartBodySerializationError',
+                reason: 'MissingBody',
+            });
+        }
     });
 
     it('fails for values that are neither FormData nor a record', () => {
@@ -58,7 +61,7 @@ describe('serializeMultipartBody', () => {
     });
 
     it('fails for unsupported record field values', () => {
-        for (const value of [null, ['a'], { nested: 'object' }, () => 'fn']) {
+        for (const value of [Number.NaN, Number.POSITIVE_INFINITY, ['a'], { nested: 'object' }, () => 'fn']) {
             const result = serializeMultipartBody({ field: value });
 
             const error = Result.unwrapError(result);

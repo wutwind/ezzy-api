@@ -122,6 +122,7 @@ describe('createApi', () => {
         });
         const api = createApi(definition, {
             baseUrl: '/api',
+            headers: { 'content-type': 'application/json' },
             fetch: (_url, init) => {
                 receivedInit = init;
                 return Promise.resolve(new Response('{"id":"user-1","name":"avatar"}'));
@@ -131,12 +132,12 @@ describe('createApi', () => {
         const result = await api.uploadAvatar({
             params: { id: 'user-1' },
             body: { file: new Blob(['bytes']), title: 'avatar' },
+            headers: { 'content-type': 'multipart/form-data; boundary=x' },
         });
 
         assert.deepEqual(Result.unwrap(result), { id: 'user-1', name: 'avatar' });
-        assert.ok(receivedInit?.body instanceof FormData);
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-        const body = receivedInit?.body as FormData;
+        const body = receivedInit?.body;
+        assert.ok(body instanceof FormData);
         assert.equal(body.get('title'), 'avatar');
         assert.deepEqual(receivedInit?.headers, { accept: 'application/json' });
     });
@@ -207,7 +208,6 @@ describe('createApi', () => {
             assert.throws(
                 () =>
                     createApi(
-                        // Runtime guard for JavaScript callers.
                         { invalid: { method: 'POST', path: '/items', body, response: v.unknown() } } as never,
                         { baseUrl: '/api' },
                     ),
@@ -249,10 +249,14 @@ describe('createApi', () => {
                     response: v.object({ contentType: v.string(), body: v.string() }),
                 },
             });
-            const api = createApi(definition, { baseUrl: `http://127.0.0.1:${port}` });
+            const api = createApi(definition, {
+                baseUrl: `http://127.0.0.1:${port}`,
+                headers: { 'content-type': 'application/json' },
+            });
 
             const multipart = await api.uploadAvatar({
                 body: { title: 'avatar', file: new Blob(['file-bytes']) },
+                headers: { 'content-type': 'multipart/form-data; boundary=x' },
             });
             const multipartValue = Result.unwrap(multipart);
             assert.match(multipartValue.contentType, /^multipart\/form-data; boundary=/u);

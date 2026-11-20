@@ -154,9 +154,9 @@ describe('buildRequest', () => {
         );
 
         const request = Result.unwrap(result);
-        assert.ok(request.body instanceof FormData);
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-        assert.equal((request.body as FormData).get('title'), 'avatar');
+        const body = request.body;
+        assert.ok(body instanceof FormData);
+        assert.equal(body.get('title'), 'avatar');
     });
 
     it('maps a missing multipart body to RequestValidationError', () => {
@@ -184,7 +184,7 @@ describe('buildRequest', () => {
             response,
         } as const;
 
-        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {}, rawBody: { field: null } });
+        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {}, rawBody: { field: ['a'] } });
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {

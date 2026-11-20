@@ -19,7 +19,6 @@ export interface BuildRequestOptions {
     readonly queryOptions?: QueryOptions;
     readonly signal?: AbortSignal;
     readonly headers: TransportHeaders;
-    /** Call-time body value used for marker-declared (multipart/stream) bodies. */
     readonly rawBody?: unknown;
 }
 

@@ -10,7 +10,6 @@ import type { TransportHeaders } from '../transport/types.ts';
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const INVALID_HEADER_VALUE = /[\0\r\n]/u;
 
-/** Which body kind the headers are built for; drives the default content-type. */
 export type RequestBodyKind = 'none' | 'json' | 'multipart' | 'stream';
 
 interface InvalidHeaderCause {
@@ -42,7 +41,7 @@ function applyHeaders(
             target.set(normalizedName, value.trim());
         }
     }
-    return Result.succeed(undefined);
+    return Result.succeed();
 }
 
 export function buildHeaders(
@@ -61,6 +60,21 @@ export function buildHeaders(
     }
 }
 
+function applyHeaderLayers(
+    headers: Map<string, string>,
+    layers: readonly (HeaderOptions | undefined)[],
+): Result.Result<void, InvalidHeaderCause> {
+    for (const layer of layers) {
+        if (layer != null) {
+            const result = applyHeaders(headers, layer);
+            if (Result.isFailure(result)) {
+                return result;
+            }
+        }
+    }
+    return Result.succeed();
+}
+
 function resolveHeaders(
     bodyKind: RequestBodyKind,
     layers: readonly (HeaderOptions | undefined)[],
@@ -69,15 +83,12 @@ function resolveHeaders(
     if (bodyKind === 'json') {
         headers.set('content-type', 'application/json');
     }
-    // Multipart and stream bodies carry no default content-type.
-    // Fetch adds the multipart boundary, and a stream's media type cannot be inferred.
-    for (const layer of layers) {
-        if (layer != null) {
-            const result = applyHeaders(headers, layer);
-            if (Result.isFailure(result)) {
-                return result;
-            }
-        }
+    const applied = applyHeaderLayers(headers, layers);
+    if (Result.isFailure(applied)) {
+        return applied;
+    }
+    if (bodyKind === 'multipart') {
+        headers.delete('content-type');
     }
     return Result.succeed(Object.fromEntries(headers));
 }

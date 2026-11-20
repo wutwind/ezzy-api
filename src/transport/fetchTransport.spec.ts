@@ -5,6 +5,10 @@ import { Result } from '@praha/byethrow';
 
 import { createFetchTransport, type FetchImplementation } from './fetchTransport.ts';
 
+function duplexOf(init: RequestInit | undefined): unknown {
+    return init !== undefined && 'duplex' in init ? init.duplex : undefined;
+}
+
 describe('createFetchTransport', () => {
     it('calls fetch with the transport request and reads the response', async () => {
         let receivedInput: string | undefined;
@@ -114,10 +118,16 @@ describe('createFetchTransport', () => {
             return Promise.resolve(new Response('{}'));
         });
 
-        await transport.request({ url: '/upload', method: 'POST', headers: {}, body: form });
+        await transport.request({
+            url: '/upload',
+            method: 'POST',
+            headers: { accept: 'application/json', 'Content-Type': 'multipart/form-data; boundary=x' },
+            body: form,
+        });
 
         assert.equal(receivedInit?.body, form);
-        assert.notEqual((receivedInit as { duplex?: unknown }).duplex, 'half');
+        assert.deepEqual(receivedInit?.headers, { accept: 'application/json' });
+        assert.notEqual(duplexOf(receivedInit), 'half');
     });
 
     it('marks stream bodies as half-duplex for undici', async () => {
@@ -128,9 +138,15 @@ describe('createFetchTransport', () => {
             return Promise.resolve(new Response('{}'));
         });
 
-        await transport.request({ url: '/upload', method: 'POST', headers: {}, body: stream });
+        await transport.request({
+            url: '/upload',
+            method: 'POST',
+            headers: { 'content-type': 'application/octet-stream' },
+            body: stream,
+        });
 
         assert.equal(receivedInit?.body, stream);
-        assert.equal((receivedInit as { duplex?: unknown }).duplex, 'half');
+        assert.deepEqual(receivedInit?.headers, { 'content-type': 'application/octet-stream' });
+        assert.equal(duplexOf(receivedInit), 'half');
     });
 });

@@ -92,7 +92,6 @@ export interface EndpointDefinition<
     params?: ValidParamsSchema<TPath, TParams>;
     query?: TQuery;
     queryOptions?: TQuery extends Schema ? QueryOptions : never;
-    /** A schema declares a JSON body; multipartBody() and streamBody() declare binary bodies. */
     body?: TBody;
 
     /** Response schema is mandatory. */
@@ -164,7 +163,6 @@ type EndpointBodyInput<TBody> = TBody extends Schema
         ? StreamBodyInput
         : never;
 
-// Marker-declared bodies are required at the type level; a missing multipart or stream body fails at runtime.
 type EndpointBodyRequest<TBody> = TBody extends Schema
     ? RequestPart<'body', SchemaInput<TBody>>
     : TBody extends BodyKind

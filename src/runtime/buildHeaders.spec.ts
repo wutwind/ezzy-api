@@ -51,13 +51,16 @@ describe('buildHeaders', () => {
         });
     });
 
-    it('keeps caller-provided content types for multipart and stream bodies', () => {
+    it('drops multipart content type from every layer and keeps a stream media type', () => {
         assert.deepEqual(
-            Result.unwrap(buildHeaders('multipart', { 'content-type': 'multipart/form-data; boundary=x' })),
-            {
-                accept: 'application/json',
-                'content-type': 'multipart/form-data; boundary=x',
-            },
+            Result.unwrap(
+                buildHeaders(
+                    'multipart',
+                    { 'content-type': 'application/json' },
+                    { 'Content-Type': 'multipart/form-data; boundary=x' },
+                ),
+            ),
+            { accept: 'application/json' },
         );
         assert.deepEqual(
             Result.unwrap(buildHeaders('stream', { 'content-type': 'application/octet-stream' })),
