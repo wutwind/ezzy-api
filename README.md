@@ -90,14 +90,14 @@ const apiDefinition = defineApi({
 
 Endpoint fields:
 
-| Field      | Required | Description                                                                  |
-| ---------- | -------- | ---------------------------------------------------------------------------- |
-| `method`   | yes      | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`                |
-| `path`     | yes      | URL path; `:name` segments declare path parameters                           |
-| `params`   | no       | Schema for path parameters                                                   |
-| `query`    | no       | Schema for query parameters                                                  |
-| `body`     | no       | Schema for a JSON body, or `multipartBody()`/`streamBody()` for file uploads |
-| `response` | yes      | Schema whose output becomes the endpoint result type                         |
+| Field      | Required | Description                                                                                         |
+| ---------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `method`   | yes      | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`                                       |
+| `path`     | yes      | URL path; `:name` segments declare path parameters                                                  |
+| `params`   | no       | Schema for path parameters                                                                          |
+| `query`    | no       | Schema for query parameters                                                                         |
+| `body`     | no       | Schema for a JSON body, or `multipartBody()` / `multipartStreamBody()` / `streamBody()` for uploads |
+| `response` | yes      | Schema whose output becomes the endpoint result type                                                |
 
 `defineApi()` preserves endpoint names and path literals while validating the definition at
 compile time. It is an identity function at runtime and does not create a transport.
@@ -175,7 +175,8 @@ const createdResult = await api.createCourse({
 
 ## File uploads
 
-Declare upload endpoints with `multipartBody()` or `streamBody()` instead of a schema:
+Declare upload endpoints with `multipartBody()`, `multipartStreamBody()`, or `streamBody()` instead
+of a schema:
 
 ```ts
 const apiDefinition = defineApi({
@@ -185,6 +186,12 @@ const apiDefinition = defineApi({
         params: v.object({ id: v.pipe(v.string(), v.uuid()) }),
         body: multipartBody(),
         response: AvatarSchema,
+    },
+    uploadFiles: {
+        method: 'POST',
+        path: '/files',
+        body: multipartStreamBody(),
+        response: UploadSchema,
     },
     uploadBackup: {
         method: 'POST',
@@ -205,12 +212,25 @@ await api.uploadBackup({
     body: new Blob([bytes]).stream(),
     headers: { 'content-type': 'application/octet-stream' },
 });
+
+// streaming multipart: the library writes the boundary; file bytes stay a stream
+await api.uploadFiles({
+    body: [
+        { name: 'title', value: 'avatar' },
+        {
+            name: 'file',
+            value: { stream: fileStream, filename: 'фото.png', type: 'image/png', size: fileSize },
+        },
+    ],
+});
 ```
 
-Fetch sets the multipart boundary itself. A `content-type` from client or call headers is dropped
-for a multipart body. Stream bodies have no default content type, so supply it through headers.
-Cancellation through `signal` works for uploads as for any other call. See
-[Using @wutwind/ezzy-api](docs/usage.md) for details.
+Fetch sets the boundary for a `FormData` body, and a caller `content-type` is dropped in that case.
+`multipartStreamBody()` sets `content-type` itself, including the boundary. Pass `size` when the
+file length is known to send `Content-Length`; omit it to send the body chunked. The file is pulled
+as it is sent and is not buffered. Stream bodies have no default content type, so supply it through
+headers. See [Using @wutwind/ezzy-api](docs/usage.md) for the streaming-multipart limitations:
+known and unknown size, where the bytes stay, and progress.
 
 ## Shared client, headers, query format, and interceptors
 

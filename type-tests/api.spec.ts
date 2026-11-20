@@ -1,6 +1,13 @@
 import * as v from 'valibot';
 
-import { createApi, defineApi, multipartBody, streamBody, type ApiClient } from '../src/index.ts';
+import {
+    createApi,
+    defineApi,
+    multipartBody,
+    multipartStreamBody,
+    streamBody,
+    type ApiClient,
+} from '../src/index.ts';
 
 const OkSchema = v.object({
     ok: v.boolean(),
@@ -91,6 +98,12 @@ const definition = defineApi({
         method: 'POST',
         path: '/backup',
         body: streamBody(),
+        response: OkSchema,
+    },
+    uploadFiles: {
+        method: 'POST',
+        path: '/files',
+        body: multipartStreamBody(),
         response: OkSchema,
     },
 });
@@ -337,6 +350,56 @@ api.uploadBackup({ body: new Uint8Array([1]) });
 
 // @ts-expect-error stream body must not be a string
 api.uploadBackup({ body: 'raw-bytes' });
+
+// Case J2: streaming multipart accepts ordered fields and file streams.
+api.uploadFiles({
+    body: [
+        { name: 'title', value: 'avatar' },
+        { name: 'order', value: 1 },
+        { name: 'active', value: true },
+        {
+            name: 'file',
+            value: {
+                stream: new Blob(['bytes']).stream(),
+                filename: 'фото.png',
+                type: 'image/png',
+                size: 5,
+            },
+        },
+        {
+            name: 'file',
+            value: {
+                stream: new Blob(['bytes']).stream(),
+                filename: 'b.png',
+                type: 'image/png',
+            },
+        },
+    ],
+});
+
+// @ts-expect-error streaming multipart body is required
+api.uploadFiles();
+
+// @ts-expect-error streaming multipart does not accept FormData
+api.uploadFiles({ body: new FormData() });
+
+// @ts-expect-error a file field needs a stream, filename, and media type
+api.uploadFiles({ body: [{ name: 'file', value: new Blob(['bytes']) }] });
+
+api.uploadFiles({
+    body: [
+        {
+            name: 'file',
+            value: {
+                stream: new Blob(['bytes']).stream(),
+                filename: 'a.png',
+                type: 'image/png',
+                // @ts-expect-error file size is a byte count
+                size: '10',
+            },
+        },
+    ],
+});
 
 // Case K: markers are rejected in place of a schema body.
 defineApi({

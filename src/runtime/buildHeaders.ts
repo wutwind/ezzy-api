@@ -10,7 +10,7 @@ import type { TransportHeaders } from '../transport/types.ts';
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const INVALID_HEADER_VALUE = /[\0\r\n]/u;
 
-export type RequestBodyKind = 'none' | 'json' | 'multipart' | 'stream';
+export type RequestBodyKind = 'none' | 'json' | 'multipart' | 'multipart-stream' | 'stream';
 
 interface InvalidHeaderCause {
     readonly name: string;
@@ -87,7 +87,8 @@ function resolveHeaders(
     if (Result.isFailure(applied)) {
         return applied;
     }
-    if (bodyKind === 'multipart') {
+    // FormData and streaming multipart own the boundary, so a caller content-type cannot replace it.
+    if (bodyKind === 'multipart' || bodyKind === 'multipart-stream') {
         headers.delete('content-type');
     }
     return Result.succeed(Object.fromEntries(headers));
