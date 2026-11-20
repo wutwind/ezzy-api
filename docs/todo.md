@@ -26,9 +26,11 @@ logging, metrics, and retry policies. Possible later work:
 ## 3. File transfers and progress
 
 Binary request bodies are now defined: `multipartBody()` and `streamBody()` declare multipart and
-streaming uploads. Progress belongs to the transport layer because events occur while bytes are
-sent or received. Potential per-call callbacks could be passed through `TransportRequest`, while
-each transport would implement the actual accounting.
+streaming uploads, and `multipartStreamBody()` streams file parts inside multipart framing.
+`Content-Length` is set when every streaming file size is known. Progress still belongs to the
+transport layer because events occur while bytes are sent or received. Potential per-call callbacks
+could be passed through `TransportRequest`, while each transport would implement the actual
+accounting.
 
 Design constraints:
 

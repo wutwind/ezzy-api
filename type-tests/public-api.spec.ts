@@ -3,6 +3,7 @@ import {
     createApiClient,
     defineApi,
     multipartBody,
+    multipartStreamBody,
     streamBody,
     type ApiClient,
     type ApiClientFactory,
@@ -12,6 +13,7 @@ import {
     type CreateApiClientOptions,
     type CreateApiOptions,
     type MultipartBodyInput,
+    type MultipartStreamBodyInput,
     type QueryOptions,
     type StreamBodyInput,
     type Transport,
@@ -31,6 +33,7 @@ createApi satisfies Function;
 createApiClient satisfies Function;
 defineApi satisfies Function;
 multipartBody satisfies Function;
+multipartStreamBody satisfies Function;
 streamBody satisfies Function;
 
 declare const customTransport: Transport<TransportFailure>;
@@ -46,6 +49,7 @@ type PublicTypes =
     | CreateApiClientOptions
     | CreateApiOptions
     | MultipartBodyInput
+    | MultipartStreamBodyInput
     | QueryOptions
     | StreamBodyInput
     | Transport

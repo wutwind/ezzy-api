@@ -9,6 +9,12 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Streaming multipart uploads: `body: multipartStreamBody()` sends `multipart/form-data` whose file
+  parts are `ReadableStream<Uint8Array>`. The library writes the boundary and part headers. One
+  field name may be repeated. Filenames are UTF-8, including non-ASCII. When every file `size` is
+  known, the request includes `Content-Length` of the whole body; otherwise the body is chunked.
+  File bytes are pulled as the body is sent and are not buffered. A source stream that errors or
+  is cancelled fails the call with `TransportError` or `AbortError`.
 - File upload endpoints: `body: multipartBody()` accepts `FormData` or a record of
   `string | number | boolean | Blob` fields, and `body: streamBody()` accepts a
   `ReadableStream<Uint8Array>` for chunked upload. Non-finite numbers are rejected.

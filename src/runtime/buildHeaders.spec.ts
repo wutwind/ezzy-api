@@ -46,6 +46,9 @@ describe('buildHeaders', () => {
         assert.deepEqual(Result.unwrap(buildHeaders('multipart')), {
             accept: 'application/json',
         });
+        assert.deepEqual(Result.unwrap(buildHeaders('multipart-stream')), {
+            accept: 'application/json',
+        });
         assert.deepEqual(Result.unwrap(buildHeaders('stream')), {
             accept: 'application/json',
         });
@@ -60,6 +63,10 @@ describe('buildHeaders', () => {
                     { 'Content-Type': 'multipart/form-data; boundary=x' },
                 ),
             ),
+            { accept: 'application/json' },
+        );
+        assert.deepEqual(
+            Result.unwrap(buildHeaders('multipart-stream', { 'content-type': 'application/json' })),
             { accept: 'application/json' },
         );
         assert.deepEqual(
