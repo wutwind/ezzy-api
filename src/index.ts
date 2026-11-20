@@ -15,11 +15,15 @@ export type {
     CreateApiClientOptions,
     CreateApiOptions,
 } from './core/createApi.ts';
-export { multipartBody, streamBody } from './core/bodyKinds.ts';
+export { multipartBody, multipartStreamBody, streamBody } from './core/bodyKinds.ts';
 export type {
     BodyKind,
     MultipartBody,
     MultipartBodyInput,
+    MultipartStreamBody,
+    MultipartStreamBodyInput,
+    MultipartStreamField,
+    MultipartStreamFile,
     StreamBody,
     StreamBodyInput,
 } from './core/bodyKinds.ts';

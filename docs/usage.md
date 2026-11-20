@@ -98,15 +98,15 @@ literals while applying compile-time contract checks.
 
 ### Endpoint fields
 
-| Field          | Required      | Meaning                                                                 |
-| -------------- | ------------- | ----------------------------------------------------------------------- |
-| `method`       | yes           | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`           |
-| `path`         | yes           | Relative endpoint path; `:name` segments declare path parameters        |
-| `params`       | conditionally | Schema for path parameters; required when `path` contains parameters    |
-| `query`        | no            | Schema for query-string values                                          |
-| `queryOptions` | no            | Endpoint-level query serialization override; requires `query`           |
-| `body`         | no            | Schema for a JSON body, or `multipartBody()`/`streamBody()` for uploads |
-| `response`     | yes           | Schema for the decoded successful response                              |
+| Field          | Required      | Meaning                                                                                             |
+| -------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| `method`       | yes           | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`                                       |
+| `path`         | yes           | Relative endpoint path; `:name` segments declare path parameters                                    |
+| `params`       | conditionally | Schema for path parameters; required when `path` contains parameters                                |
+| `query`        | no            | Schema for query-string values                                                                      |
+| `queryOptions` | no            | Endpoint-level query serialization override; requires `query`                                       |
+| `body`         | no            | Schema for a JSON body, or `multipartBody()` / `multipartStreamBody()` / `streamBody()` for uploads |
+| `response`     | yes           | Schema for the decoded successful response                                                          |
 
 Do not include `?query` or `#fragment` in `path`. Query values belong in the `query` section.
 
@@ -515,11 +515,11 @@ Timeout configuration is not built in yet. Applications can pass `AbortSignal.ti
 
 ## 7. Upload files
 
-Endpoints that transfer files or binary data declare their body with `multipartBody()` or
-`streamBody()` instead of a schema:
+Endpoints that transfer files or binary data declare their body with `multipartBody()`,
+`multipartStreamBody()`, or `streamBody()` instead of a schema:
 
 ```ts
-import { defineApi, multipartBody, streamBody } from '@wutwind/ezzy-api';
+import { defineApi, multipartBody, multipartStreamBody, streamBody } from '@wutwind/ezzy-api';
 
 export const uploadApiDefinition = defineApi({
     uploadAvatar: {
@@ -528,6 +528,12 @@ export const uploadApiDefinition = defineApi({
         params: UserParamsSchema,
         body: multipartBody(),
         response: AvatarSchema,
+    },
+    uploadFiles: {
+        method: 'POST',
+        path: '/files',
+        body: multipartStreamBody(),
+        response: UploadSchema,
     },
     uploadBackup: {
         method: 'POST',
@@ -570,6 +576,81 @@ form.append('tag', 'b');
 await uploadApi.uploadAvatar({ params: { id: userId }, body: form });
 ```
 
+### Streaming multipart bodies
+
+`multipartStreamBody()` is a `multipart/form-data` body whose file bytes are a
+`ReadableStream<Uint8Array>`. The library writes the boundary and the part headers. The caller does
+not encode them. The body is an ordered list of fields, so one name can carry several files, and
+text fields can sit next to files:
+
+```ts
+await uploadApi.uploadFiles({
+    body: [
+        { name: 'title', value: 'avatar' },
+        { name: 'order', value: 1 },
+        { name: 'active', value: true },
+        {
+            name: 'file',
+            value: {
+                stream: fileStream,
+                filename: 'фото.png',
+                type: 'image/png',
+                size: fileSize,
+            },
+        },
+        {
+            name: 'file',
+            value: {
+                stream: anotherStream,
+                filename: 'notes.txt',
+                type: 'text/plain',
+            },
+        },
+    ],
+});
+```
+
+Scalar values are strings, finite numbers, or booleans, converted with `String()`. A file value has
+`stream`, `filename`, and `type`. `filename` is sent as UTF-8 in the part's `filename` parameter
+(quotes and line breaks are percent-escaped), so a non-ASCII name reaches a Fetch-compatible parser
+unchanged. An empty `type` is sent as `application/octet-stream`.
+
+The response is still checked with the endpoint schema. A malformed body — a missing list, a
+non-finite number, a locked stream, or a file without a name — is a `RequestValidationError` for
+the `body` section and does not call the transport.
+
+**Known size.** Pass `size` as the exact number of bytes the stream will produce, on every file.
+The request then has `Content-Length` for the whole body, including framing and text fields. The
+library uses the declared lengths; it does not read the streams to measure them. If a stream ends
+early or produces more bytes than `size`, the call fails with `TransportError` instead of a
+successful result.
+
+**Unknown size.** Omit `size` on any file. The body is sent chunked, without `Content-Length`. A
+`content-length` from client headers, call headers, or an earlier default is removed.
+
+**Where the file stays.** Bytes remain in the caller's stream: a file on disk, a network body, or a
+generator. The bytes stay in the caller's stream. The library pulls the next chunk as the transport reads the
+request and keeps at most one unread chunk in its queue, so memory follows the chunk size. Part
+headers are small. A chunk is forwarded as the stream produced it, including a single huge chunk.
+
+**Progress.** This client does not emit upload or download progress. When every file size is known,
+the `Content-Length` header is the total a custom transport can compare with bytes already written.
+The built-in Fetch transport does not report that progress; browser Fetch has no reliable upload
+progress. Use `createApiClient({ transport })` for a transport that can, such as `XMLHttpRequest`.
+
+**Headers.** Client and call headers keep the usual order: defaults, then client, then call.
+`accept` still defaults to `application/json` and can be overridden or removed. The JSON
+`content-type` default is not applied, and a `content-type` from client or call headers does not
+replace the boundary. The library sets `content-type: multipart/form-data; boundary=...` on the
+request interceptors and the transport see. Other headers, such as `authorization`, are unchanged.
+Interceptors can still replace the request after that.
+
+**Failures.** The error model is the same as for other calls: `RequestValidationError`,
+`HttpError` (status and raw body), `TransportError`, and `AbortError`. If the source stream errors
+or is cancelled while it is being sent, the call resolves to `TransportError`, or to `AbortError`
+when the call's `AbortSignal` aborted. It does not resolve successfully. Cancelling the request
+cancels file streams that have not been fully read.
+
 ### Stream bodies
 
 `streamBody()` accepts a `ReadableStream<Uint8Array>` for chunked upload:
@@ -589,8 +670,8 @@ explicitly:
 body: new Blob([bytes]).stream();
 ```
 
-Both upload kinds support cancellation through the usual `signal` call option. An invalid body —
-for example a missing multipart body or raw bytes instead of a stream — resolves to a
+All three upload kinds support cancellation through the usual `signal` call option. An invalid body
+— for example a missing multipart body or raw bytes instead of a stream — resolves to a
 `RequestValidationError` for the `body` section without calling Fetch.
 
 ## 8. Handle results and errors
@@ -737,8 +818,10 @@ The current `TransportRequest.body` is a `string`, `FormData`, or `ReadableStrea
 transfer-progress callbacks are intentionally not part of the current public runtime contract yet.
 
 While the body is `FormData`, leave `content-type` unset. The built-in Fetch transport drops it so
-Fetch can set the boundary. A custom transport has to do the same. Pre-encoded bytes with an
-explicit media type use `streamBody()`.
+Fetch can set the boundary. A custom transport has to do the same. A `multipartStreamBody()` request
+is different: the body is already a `ReadableStream<Uint8Array>` and `content-type` already carries
+the boundary, along with `content-length` when every file size was known. Forward those headers.
+Pre-encoded bytes with an explicit media type use `streamBody()`.
 
 ## 12. URL and body behavior
 
@@ -748,10 +831,14 @@ explicit media type use `streamBody()`.
 - Path values are encoded with `encodeURIComponent`.
 - Query keys and values are percent-encoded.
 - Schema-declared request bodies are serialized with `JSON.stringify`.
-- A JSON body adds `content-type: application/json`; multipart and stream bodies do not.
-- Multipart bodies are sent as `multipart/form-data`. `content-type` from client headers, call
-  headers, and interceptors is removed while the body is `FormData`, and Fetch sets the boundary.
-- Stream bodies are sent chunked, without `Content-Length`.
+- A JSON body adds `content-type: application/json`. `multipartBody()` and `streamBody()` do not.
+- `multipartBody()` sends `FormData`. `content-type` from client headers, call headers, and
+  interceptors is removed while the body is `FormData`, and Fetch sets the boundary.
+- `multipartStreamBody()` sends a stream of multipart bytes. The library sets
+  `content-type: multipart/form-data; boundary=...`. That value replaces the JSON default and any
+  caller `content-type`. The body has `Content-Length` when every file `size` is known, and is
+  chunked otherwise.
+- `streamBody()` requests are sent chunked, without `Content-Length`.
 - Every non-empty successful response is parsed as JSON before schema validation.
 - Every non-2xx status becomes `HttpError`, including redirects returned to the transport.
 

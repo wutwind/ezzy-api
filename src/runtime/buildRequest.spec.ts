@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import { Result } from '@praha/byethrow';
 import * as v from 'valibot';
 
-import { multipartBody, streamBody } from '../core/bodyKinds.ts';
+import { multipartBody, multipartStreamBody, streamBody } from '../core/bodyKinds.ts';
 import { buildRequest } from './buildRequest.ts';
 
 const response = v.object({ ok: v.boolean() });
@@ -188,6 +188,87 @@ describe('buildRequest', () => {
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {
+            assert.equal(result.error.section, 'body');
+        }
+    });
+
+    it('frames a streaming multipart body and replaces content type and length', async () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartStreamBody(),
+            response,
+        } as const;
+        const bytes = new TextEncoder().encode('abc');
+
+        const known = buildRequest(
+            endpoint,
+            {},
+            {
+                baseUrl: '/api',
+                headers: {
+                    accept: 'application/json',
+                    authorization: 'Bearer token',
+                    'content-type': 'application/json',
+                    'content-length': '5',
+                },
+                rawBody: [
+                    {
+                        name: 'file',
+                        value: {
+                            stream: new Blob([bytes]).stream(),
+                            filename: 'a.bin',
+                            type: 'application/octet-stream',
+                            size: bytes.byteLength,
+                        },
+                    },
+                ],
+            },
+        );
+        const knownRequest = Result.unwrap(known);
+        assert.match(knownRequest.headers['content-type'] ?? '', /^multipart\/form-data; boundary=/u);
+        assert.equal(knownRequest.headers.authorization, 'Bearer token');
+        assert.equal(knownRequest.headers.accept, 'application/json');
+        assert.notEqual(knownRequest.headers['content-length'], '5');
+        const knownBody = knownRequest.body;
+        assert.ok(typeof knownBody === 'object' && knownBody !== null && 'getReader' in knownBody);
+
+        const unknown = buildRequest(
+            endpoint,
+            {},
+            {
+                baseUrl: '/api',
+                headers: { 'content-length': '5', 'content-type': 'application/json' },
+                rawBody: [
+                    {
+                        name: 'file',
+                        value: {
+                            stream: new Blob([bytes]).stream(),
+                            filename: 'a.bin',
+                            type: 'application/octet-stream',
+                        },
+                    },
+                ],
+            },
+        );
+        const unknownRequest = Result.unwrap(unknown);
+        assert.equal(Object.hasOwn(unknownRequest.headers, 'content-length'), false);
+        assert.match(unknownRequest.headers['content-type'] ?? '', /^multipart\/form-data; boundary=/u);
+    });
+
+    it('maps an invalid streaming multipart body to RequestValidationError', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartStreamBody(),
+            response,
+        } as const;
+
+        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {}, rawBody: { file: 'nope' } });
+
+        assert.equal(Result.isFailure(result), true);
+        if (Result.isFailure(result)) {
+            assert.equal(result.error.type, 'RequestValidationError');
             assert.equal(result.error.section, 'body');
         }
     });
