@@ -15,6 +15,14 @@ export type {
     CreateApiClientOptions,
     CreateApiOptions,
 } from './core/createApi.ts';
+export { multipartBody, streamBody } from './core/bodyKinds.ts';
+export type {
+    BodyKind,
+    MultipartBody,
+    MultipartBodyInput,
+    StreamBody,
+    StreamBodyInput,
+} from './core/bodyKinds.ts';
 export { defineApi } from './core/defineApi.ts';
 export type { ApiClient, CallOptions, HeaderOptions, QueryArrayFormat, QueryOptions } from './core/types.ts';
 export type { ApiError } from './errors/apiError.ts';

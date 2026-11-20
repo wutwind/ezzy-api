@@ -4,13 +4,18 @@ import { describe, it } from 'node:test';
 import { Result } from '@praha/byethrow';
 import * as v from 'valibot';
 
-import { ApiDefinitionExecutionError, InvalidEndpointPathError } from '../errors/apiDefinitionError.ts';
+import {
+    ApiDefinitionExecutionError,
+    InvalidEndpointDefinitionError,
+    InvalidEndpointPathError,
+} from '../errors/apiDefinitionError.ts';
 import {
     ClientConfigExecutionError,
     ConflictingTransportOptionsError,
     InvalidBaseUrlError,
     InvalidClientOptionError,
 } from '../errors/clientConfigError.ts';
+import { multipartBody, streamBody } from './bodyKinds.ts';
 import { createApi, createApiClient } from './createApi.ts';
 import { defineApi } from './defineApi.ts';
 
@@ -102,6 +107,173 @@ describe('createApi', () => {
 
         assert.equal(fetchCalls, 0);
         assert.equal(Result.unwrapError(result).type, 'RequestValidationError');
+    });
+
+    it('uploads a multipart body without a JSON content type', async () => {
+        let receivedInit: RequestInit | undefined;
+        const definition = defineApi({
+            uploadAvatar: {
+                method: 'POST',
+                path: '/users/:id/avatar',
+                params: v.object({ id: v.string() }),
+                body: multipartBody(),
+                response: CourseSchema,
+            },
+        });
+        const api = createApi(definition, {
+            baseUrl: '/api',
+            headers: { 'content-type': 'application/json' },
+            fetch: (_url, init) => {
+                receivedInit = init;
+                return Promise.resolve(new Response('{"id":"user-1","name":"avatar"}'));
+            },
+        });
+
+        const result = await api.uploadAvatar({
+            params: { id: 'user-1' },
+            body: { file: new Blob(['bytes']), title: 'avatar' },
+            headers: { 'content-type': 'multipart/form-data; boundary=x' },
+        });
+
+        assert.deepEqual(Result.unwrap(result), { id: 'user-1', name: 'avatar' });
+        const body = receivedInit?.body;
+        assert.ok(body instanceof FormData);
+        assert.equal(body.get('title'), 'avatar');
+        assert.deepEqual(receivedInit?.headers, { accept: 'application/json' });
+    });
+
+    it('uploads a stream body with a caller-provided content type', async () => {
+        let receivedInit: RequestInit | undefined;
+        const definition = defineApi({
+            uploadBackup: {
+                method: 'POST',
+                path: '/backups',
+                body: streamBody(),
+                response: v.object({ ok: v.boolean() }),
+            },
+        });
+        const api = createApi(definition, {
+            baseUrl: '/api',
+            fetch: (_url, init) => {
+                receivedInit = init;
+                return Promise.resolve(new Response('{"ok":true}'));
+            },
+        });
+        const stream = new Blob(['backup-bytes']).stream();
+
+        const result = await api.uploadBackup({
+            body: stream,
+            headers: { 'content-type': 'application/octet-stream' },
+        });
+
+        assert.deepEqual(Result.unwrap(result), { ok: true });
+        assert.equal(receivedInit?.body, stream);
+        assert.deepEqual(receivedInit?.headers, {
+            accept: 'application/json',
+            'content-type': 'application/octet-stream',
+        });
+    });
+
+    it('returns RequestValidationError when a marker body is missing or invalid', async () => {
+        let fetchCalls = 0;
+        const definition = defineApi({
+            uploadAvatar: { method: 'POST', path: '/avatar', body: multipartBody(), response: v.unknown() },
+            uploadBackup: { method: 'POST', path: '/backup', body: streamBody(), response: v.unknown() },
+        });
+        const api = createApi(definition, {
+            baseUrl: '/api',
+            fetch: () => {
+                fetchCalls += 1;
+                return Promise.resolve(new Response('{}'));
+            },
+        });
+
+        // @ts-expect-error a marker body is required at the type level
+        const missing = await api.uploadAvatar();
+        const invalid = await api.uploadBackup({ body: 'raw-bytes' } as never);
+
+        assert.equal(fetchCalls, 0);
+        for (const result of [missing, invalid]) {
+            assert.equal(Result.isFailure(result), true);
+            if (Result.isFailure(result)) {
+                assert.equal(result.error.type, 'RequestValidationError');
+                assert.equal(result.error.section, 'body');
+            }
+        }
+    });
+
+    it('rejects endpoint definitions with a body that is neither a schema nor a marker', () => {
+        const invalidBodies: readonly unknown[] = [42, 'json', {}, null];
+        for (const body of invalidBodies) {
+            assert.throws(
+                () =>
+                    createApi(
+                        { invalid: { method: 'POST', path: '/items', body, response: v.unknown() } } as never,
+                        { baseUrl: '/api' },
+                    ),
+                (error) => error instanceof InvalidEndpointDefinitionError && error.endpoint === 'invalid',
+            );
+        }
+    });
+
+    it('uploads multipart and stream bodies through real fetch to a real server', async () => {
+        const { createServer } = await import('node:http');
+        const server = createServer((request, response) => {
+            const chunks: Buffer[] = [];
+            request.on('data', (chunk: Buffer) => chunks.push(chunk));
+            request.on('end', () => {
+                response.setHeader('content-type', 'application/json');
+                response.end(
+                    JSON.stringify({
+                        contentType: request.headers['content-type'],
+                        body: Buffer.concat(chunks).toString('utf8'),
+                    }),
+                );
+            });
+        });
+        await new Promise<void>((resolve) => server.listen(0, resolve));
+        const { port } = server.address() as { port: number };
+
+        try {
+            const definition = defineApi({
+                uploadAvatar: {
+                    method: 'POST',
+                    path: '/avatar',
+                    body: multipartBody(),
+                    response: v.object({ contentType: v.string(), body: v.string() }),
+                },
+                uploadBackup: {
+                    method: 'POST',
+                    path: '/backup',
+                    body: streamBody(),
+                    response: v.object({ contentType: v.string(), body: v.string() }),
+                },
+            });
+            const api = createApi(definition, {
+                baseUrl: `http://127.0.0.1:${port}`,
+                headers: { 'content-type': 'application/json' },
+            });
+
+            const multipart = await api.uploadAvatar({
+                body: { title: 'avatar', file: new Blob(['file-bytes']) },
+                headers: { 'content-type': 'multipart/form-data; boundary=x' },
+            });
+            const multipartValue = Result.unwrap(multipart);
+            assert.match(multipartValue.contentType, /^multipart\/form-data; boundary=/u);
+            assert.match(multipartValue.body, /name="title"\r\n\r\navatar/u);
+            assert.match(multipartValue.body, /name="file"; filename="blob"\r\n/u);
+            assert.match(multipartValue.body, /file-bytes/u);
+
+            const streamed = await api.uploadBackup({
+                body: new Blob(['backup-bytes']).stream(),
+                headers: { 'content-type': 'application/octet-stream' },
+            });
+            const streamedValue = Result.unwrap(streamed);
+            assert.equal(streamedValue.contentType, 'application/octet-stream');
+            assert.equal(streamedValue.body, 'backup-bytes');
+        } finally {
+            await new Promise((resolve) => server.close(resolve));
+        }
     });
 
     it('returns response schema output after transforms', async () => {

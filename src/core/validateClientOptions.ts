@@ -34,7 +34,7 @@ function validateExtensions(options: CreateApiClientOptions): void {
 }
 
 function validateHeaders(options: CreateApiClientOptions): void {
-    const headers = buildHeaders(false, options.headers);
+    const headers = buildHeaders('none', options.headers);
     if (Result.isFailure(headers)) {
         throw new InvalidClientOptionError('headers', headers.error.cause);
     }

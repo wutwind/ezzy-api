@@ -2,6 +2,8 @@ import {
     createApi,
     createApiClient,
     defineApi,
+    multipartBody,
+    streamBody,
     type ApiClient,
     type ApiClientFactory,
     type ApiDefinitionError,
@@ -9,7 +11,9 @@ import {
     type ClientConfigError,
     type CreateApiClientOptions,
     type CreateApiOptions,
+    type MultipartBodyInput,
     type QueryOptions,
+    type StreamBodyInput,
     type Transport,
     type TransportFailure,
     type TransportRequest,
@@ -26,6 +30,8 @@ import { validateRequest } from '../src/index.ts';
 createApi satisfies Function;
 createApiClient satisfies Function;
 defineApi satisfies Function;
+multipartBody satisfies Function;
+streamBody satisfies Function;
 
 declare const customTransport: Transport<TransportFailure>;
 // @ts-expect-error a client accepts either fetch or a custom transport, not both
@@ -39,7 +45,9 @@ type PublicTypes =
     | ClientConfigError
     | CreateApiClientOptions
     | CreateApiOptions
+    | MultipartBodyInput
     | QueryOptions
+    | StreamBodyInput
     | Transport
     | TransportInterceptor;
 declare const publicType: PublicTypes;

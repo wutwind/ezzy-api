@@ -5,6 +5,10 @@ import { Result } from '@praha/byethrow';
 
 import { createFetchTransport, type FetchImplementation } from './fetchTransport.ts';
 
+function duplexOf(init: RequestInit | undefined): unknown {
+    return init !== undefined && 'duplex' in init ? init.duplex : undefined;
+}
+
 describe('createFetchTransport', () => {
     it('calls fetch with the transport request and reads the response', async () => {
         let receivedInput: string | undefined;
@@ -103,5 +107,46 @@ describe('createFetchTransport', () => {
         const result = await transport.request({ url: '/ping', method: 'GET', headers: {} });
 
         assert.deepEqual(Result.unwrapError(result), { type: 'TransportError', cause });
+    });
+
+    it('passes FormData bodies through to fetch', async () => {
+        let receivedInit: RequestInit | undefined;
+        const form = new FormData();
+        form.append('title', 'avatar');
+        const transport = createFetchTransport((_input, init) => {
+            receivedInit = init;
+            return Promise.resolve(new Response('{}'));
+        });
+
+        await transport.request({
+            url: '/upload',
+            method: 'POST',
+            headers: { accept: 'application/json', 'Content-Type': 'multipart/form-data; boundary=x' },
+            body: form,
+        });
+
+        assert.equal(receivedInit?.body, form);
+        assert.deepEqual(receivedInit?.headers, { accept: 'application/json' });
+        assert.notEqual(duplexOf(receivedInit), 'half');
+    });
+
+    it('marks stream bodies as half-duplex for undici', async () => {
+        let receivedInit: RequestInit | undefined;
+        const stream = new Blob(['bytes']).stream();
+        const transport = createFetchTransport((_input, init) => {
+            receivedInit = init;
+            return Promise.resolve(new Response('{}'));
+        });
+
+        await transport.request({
+            url: '/upload',
+            method: 'POST',
+            headers: { 'content-type': 'application/octet-stream' },
+            body: stream,
+        });
+
+        assert.equal(receivedInit?.body, stream);
+        assert.deepEqual(receivedInit?.headers, { 'content-type': 'application/octet-stream' });
+        assert.equal(duplexOf(receivedInit), 'half');
     });
 });

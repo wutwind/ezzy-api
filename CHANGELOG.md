@@ -7,6 +7,19 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- File upload endpoints: `body: multipartBody()` accepts `FormData` or a record of
+  `string | number | boolean | Blob` fields, and `body: streamBody()` accepts a
+  `ReadableStream<Uint8Array>` for chunked upload. Non-finite numbers are rejected.
+  Multipart requests omit `content-type` so Fetch can set the boundary; a custom transport
+  needs to do the same while the body is `FormData`.
+
+### Changed
+
+- `TransportRequest.body` now accepts `FormData` and `ReadableStream<Uint8Array>` in addition to
+  `string`. Custom transport implementations that read the body need to handle the new types.
+
 ## [0.2.0] - 2026-08-18
 
 ### Changed

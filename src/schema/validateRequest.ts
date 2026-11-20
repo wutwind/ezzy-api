@@ -1,5 +1,6 @@
 import { Result } from '@praha/byethrow';
 
+import { isBodyKind } from '../core/bodyKinds.ts';
 import type { AnyEndpoint, Schema, SchemaOutput } from '../core/types.ts';
 import {
     type RequestSection,
@@ -59,6 +60,10 @@ async function validateOptionalSection(
     return Result.isFailure(result) ? result : Result.succeed([section, result.value] as const);
 }
 
+function isSchemaBody(body: AnyEndpoint['body']): body is Schema {
+    return body !== undefined && !isBodyKind(body);
+}
+
 /** Validates every declared request section and returns schema outputs. */
 export async function validateRequest<TEndpoint extends AnyEndpoint>(
     endpoint: TEndpoint,
@@ -67,7 +72,7 @@ export async function validateRequest<TEndpoint extends AnyEndpoint>(
     const results = await Promise.all([
         validateOptionalSection('params', endpoint.params, request),
         validateOptionalSection('query', endpoint.query, request),
-        validateOptionalSection('body', endpoint.body, request),
+        validateOptionalSection('body', isSchemaBody(endpoint.body) ? endpoint.body : undefined, request),
     ]);
     const failure = results.find((result) => Result.isFailure(result));
     if (failure !== undefined && Result.isFailure(failure)) {
