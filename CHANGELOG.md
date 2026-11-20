@@ -7,6 +7,8 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-20
+
 ### Added
 
 - File upload endpoints: `body: multipartBody()` accepts `FormData` or a record of
@@ -43,3 +45,4 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 [0.1.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.1.0
 [0.2.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.2.0
+[0.3.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.3.0
