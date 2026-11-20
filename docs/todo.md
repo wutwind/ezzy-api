@@ -25,9 +25,10 @@ logging, metrics, and retry policies. Possible later work:
 
 ## 3. File transfers and progress
 
-Progress belongs to the transport layer because events occur while bytes are sent or received.
-Potential per-call callbacks could be passed through `TransportRequest`, while each transport would
-implement the actual accounting.
+Binary request bodies are now defined: `multipartBody()` and `streamBody()` declare multipart and
+streaming uploads. Progress belongs to the transport layer because events occur while bytes are
+sent or received. Potential per-call callbacks could be passed through `TransportRequest`, while
+each transport would implement the actual accounting.
 
 Design constraints:
 
@@ -36,13 +37,13 @@ Design constraints:
 - browser Fetch does not provide reliable upload progress, so that requires XHR or another custom
   transport;
 - `createApiClient({ transport })` already accepts a custom transport;
-- binary request and response contracts must be designed before exposing a progress API.
+- streaming responses remain undefined; binary response contracts must be designed before exposing
+  download progress.
 
-Do not promise progress in the built-in fetch transport until binary bodies and responses are
-defined.
+Do not promise progress in the built-in fetch transport until the response side is defined.
 
 ## Deferred
 
 - Continuous integration: `npm run check` currently runs only locally.
-- Retries, authentication helpers, multipart bodies, streaming, optional path parameters,
-  wildcards, and catch-all paths.
+- Retries, authentication helpers, streaming responses, optional path parameters, wildcards, and
+  catch-all paths.

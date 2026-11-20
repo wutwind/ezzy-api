@@ -104,4 +104,33 @@ describe('createFetchTransport', () => {
 
         assert.deepEqual(Result.unwrapError(result), { type: 'TransportError', cause });
     });
+
+    it('passes FormData bodies through to fetch', async () => {
+        let receivedInit: RequestInit | undefined;
+        const form = new FormData();
+        form.append('title', 'avatar');
+        const transport = createFetchTransport((_input, init) => {
+            receivedInit = init;
+            return Promise.resolve(new Response('{}'));
+        });
+
+        await transport.request({ url: '/upload', method: 'POST', headers: {}, body: form });
+
+        assert.equal(receivedInit?.body, form);
+        assert.notEqual((receivedInit as { duplex?: unknown }).duplex, 'half');
+    });
+
+    it('marks stream bodies as half-duplex for undici', async () => {
+        let receivedInit: RequestInit | undefined;
+        const stream = new Blob(['bytes']).stream();
+        const transport = createFetchTransport((_input, init) => {
+            receivedInit = init;
+            return Promise.resolve(new Response('{}'));
+        });
+
+        await transport.request({ url: '/upload', method: 'POST', headers: {}, body: stream });
+
+        assert.equal(receivedInit?.body, stream);
+        assert.equal((receivedInit as { duplex?: unknown }).duplex, 'half');
+    });
 });

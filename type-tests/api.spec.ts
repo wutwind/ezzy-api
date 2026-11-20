@@ -1,6 +1,6 @@
 import * as v from 'valibot';
 
-import { createApi, defineApi, type ApiClient } from '../src/index.ts';
+import { createApi, defineApi, multipartBody, streamBody, type ApiClient } from '../src/index.ts';
 
 const OkSchema = v.object({
     ok: v.boolean(),
@@ -80,6 +80,18 @@ const definition = defineApi({
         path: '/transform',
         body: TransformBodySchema,
         response: DateResponseSchema,
+    },
+    uploadAvatar: {
+        method: 'POST',
+        path: '/avatar',
+        body: multipartBody(),
+        response: ItemSchema,
+    },
+    uploadBackup: {
+        method: 'POST',
+        path: '/backup',
+        body: streamBody(),
+        response: OkSchema,
     },
 });
 
@@ -300,3 +312,39 @@ if (transformed.type === 'Success') {
     // @ts-expect-error response uses schema output, not schema input
     transformed.value satisfies string;
 }
+
+// Case I: multipart body accepts FormData or a typed field record.
+api.uploadAvatar({ body: new FormData() });
+api.uploadAvatar({ body: { title: 'avatar', order: 1, active: true, file: new Blob(['bytes']) } });
+
+// @ts-expect-error multipart body is required
+api.uploadAvatar();
+
+// @ts-expect-error multipart fields must be strings, numbers, booleans, or Blobs
+api.uploadAvatar({ body: { file: new Uint8Array([1]) } });
+
+// @ts-expect-error multipart fields must not be null
+api.uploadAvatar({ body: { title: null } });
+
+// Case J: stream body accepts only ReadableStream<Uint8Array>.
+api.uploadBackup({ body: new Blob(['bytes']).stream() });
+
+// @ts-expect-error stream body is required
+api.uploadBackup();
+
+// @ts-expect-error stream body must be a ReadableStream, not raw bytes
+api.uploadBackup({ body: new Uint8Array([1]) });
+
+// @ts-expect-error stream body must not be a string
+api.uploadBackup({ body: 'raw-bytes' });
+
+// Case K: markers are rejected in place of a schema body.
+defineApi({
+    invalid: {
+        method: 'POST',
+        path: '/items',
+        // @ts-expect-error a marker is not a schema and a string cannot declare a body
+        body: 'multipart',
+        response: ItemSchema,
+    },
+});

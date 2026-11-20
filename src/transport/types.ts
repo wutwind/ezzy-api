@@ -8,7 +8,7 @@ export interface TransportRequest {
     readonly url: string;
     readonly method: HttpMethod;
     readonly headers: TransportHeaders;
-    readonly body?: string;
+    readonly body?: string | FormData | ReadableStream<Uint8Array>;
     readonly signal?: AbortSignal;
 }
 

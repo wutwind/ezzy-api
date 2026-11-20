@@ -90,14 +90,14 @@ const apiDefinition = defineApi({
 
 Endpoint fields:
 
-| Field      | Required | Description                                                   |
-| ---------- | -------- | ------------------------------------------------------------- |
-| `method`   | yes      | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS` |
-| `path`     | yes      | URL path; `:name` segments declare path parameters            |
-| `params`   | no       | Schema for path parameters                                    |
-| `query`    | no       | Schema for query parameters                                   |
-| `body`     | no       | Schema for the request body                                   |
-| `response` | yes      | Schema whose output becomes the endpoint result type          |
+| Field      | Required | Description                                                                  |
+| ---------- | -------- | ---------------------------------------------------------------------------- |
+| `method`   | yes      | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`                |
+| `path`     | yes      | URL path; `:name` segments declare path parameters                           |
+| `params`   | no       | Schema for path parameters                                                   |
+| `query`    | no       | Schema for query parameters                                                  |
+| `body`     | no       | Schema for a JSON body, or `multipartBody()`/`streamBody()` for file uploads |
+| `response` | yes      | Schema whose output becomes the endpoint result type                         |
 
 `defineApi()` preserves endpoint names and path literals while validating the definition at
 compile time. It is an identity function at runtime and does not create a transport.
@@ -173,6 +173,44 @@ const createdResult = await api.createCourse({
 });
 ```
 
+## File uploads
+
+Declare upload endpoints with `multipartBody()` or `streamBody()` instead of a schema:
+
+```ts
+const apiDefinition = defineApi({
+    uploadAvatar: {
+        method: 'POST',
+        path: '/users/:id/avatar',
+        params: v.object({ id: v.pipe(v.string(), v.uuid()) }),
+        body: multipartBody(),
+        response: AvatarSchema,
+    },
+    uploadBackup: {
+        method: 'POST',
+        path: '/backups',
+        body: streamBody(),
+        response: BackupSchema,
+    },
+});
+
+// multipart: FormData or a typed record of fields
+await api.uploadAvatar({
+    params: { id: '550e8400-e29b-41d4-a716-446655440000' },
+    body: { title: 'avatar', file: new Blob([bytes], { type: 'image/png' }) },
+});
+
+// stream: ReadableStream<Uint8Array>, chunked without Content-Length
+await api.uploadBackup({
+    body: new Blob([bytes]).stream(),
+    headers: { 'content-type': 'application/octet-stream' },
+});
+```
+
+Fetch sets the multipart boundary itself; stream bodies have no default content type, so supply it
+through headers. Cancellation through `signal` works for uploads as for any other call. See
+[Using @wutwind/ezzy-api](docs/usage.md) for details.
+
 ## Shared client, headers, query format, and interceptors
 
 Use `createApiClient()` when several API definitions share transport configuration. Query array
@@ -245,10 +283,10 @@ validation functions remain internal details of the client pipeline.
 
 ## Current limitations
 
-The current client supports fetch with JSON request and response bodies, headers, cancellation, and
-transport interceptors. It does not yet include convenience timeouts, built-in retry or
-authentication policies, multipart bodies, transfer progress, streaming, optional path
-parameters, wildcards, or catch-all paths. Empty successful responses are passed to the response
-schema as `undefined`, so the contract must explicitly accept them.
+The current client supports fetch with JSON request and response bodies, multipart and streaming
+uploads, headers, cancellation, and transport interceptors. It does not yet include convenience
+timeouts, built-in retry or authentication policies, transfer progress, streaming responses,
+optional path parameters, wildcards, or catch-all paths. Empty successful responses are passed to
+the response schema as `undefined`, so the contract must explicitly accept them.
 
 Open design questions for these are tracked in `docs/todo.md`.

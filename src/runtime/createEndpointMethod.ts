@@ -1,5 +1,6 @@
 import { Result } from '@praha/byethrow';
 
+import { isBodyKind } from '../core/bodyKinds.ts';
 import type { AnyEndpoint, EndpointResponse, HeaderOptions, QueryOptions } from '../core/types.ts';
 import type { ApiError } from '../errors/apiError.ts';
 import { validateRequest } from '../schema/validateRequest.ts';
@@ -7,7 +8,7 @@ import { validateResponse } from '../schema/validateResponse.ts';
 import type { TransportFailure } from '../transport/interceptors.ts';
 import { createTransportError } from '../transport/transportError.ts';
 import type { Transport, TransportHeaders, TransportResponse } from '../transport/types.ts';
-import { buildHeaders } from './buildHeaders.ts';
+import { buildHeaders, type RequestBodyKind } from './buildHeaders.ts';
 import { buildRequest, type BuildRequestOptions } from './buildRequest.ts';
 import { createOptions, type OptionsBuilder } from './createOptions.ts';
 import { parseResponse } from './parseResponse.ts';
@@ -24,6 +25,7 @@ export interface RuntimeContext {
 interface RuntimeCallOptions {
     readonly signal?: AbortSignal;
     readonly headers?: HeaderOptions;
+    readonly body?: unknown;
 }
 
 async function handleResponse<TEndpoint extends AnyEndpoint>(
@@ -65,12 +67,21 @@ function withHeaders<T extends { readonly headers?: HeaderOptions }>(
     };
 }
 
+function withBody<T extends { readonly body?: unknown }>(body: unknown): OptionsBuilder<T> {
+    return (options) => {
+        if (body !== undefined) {
+            options.body = body;
+        }
+    };
+}
+
 function readCallOptions(options: unknown): RuntimeCallOptions {
     if (typeof options !== 'object' || options === null) {
         return {};
     }
     const signalValue: unknown = Object.getOwnPropertyDescriptor(options, 'signal')?.value;
     const headersValue: unknown = Object.getOwnPropertyDescriptor(options, 'headers')?.value;
+    const bodyValue: unknown = Object.getOwnPropertyDescriptor(options, 'body')?.value;
     const signal =
         typeof signalValue === 'object' &&
         signalValue !== null &&
@@ -82,7 +93,22 @@ function readCallOptions(options: unknown): RuntimeCallOptions {
         typeof headersValue === 'object' && headersValue !== null
             ? (headersValue as HeaderOptions)
             : undefined;
-    return createOptions<RuntimeCallOptions>({}, withSignal(signal), withHeaders(headers));
+    return createOptions<RuntimeCallOptions>(
+        {},
+        withSignal(signal),
+        withHeaders(headers),
+        withBody(bodyValue),
+    );
+}
+
+function resolveBodyKind(endpoint: AnyEndpoint): RequestBodyKind {
+    if (endpoint.body === undefined) {
+        return 'none';
+    }
+    if (isBodyKind(endpoint.body)) {
+        return endpoint.body.kind;
+    }
+    return 'json';
 }
 
 function buildOptions(
@@ -106,15 +132,14 @@ async function executeEndpoint<TEndpoint extends AnyEndpoint>(
         return validated;
     }
     const callOptions = readCallOptions(options);
-    const headers = buildHeaders(endpoint.body !== undefined, context.headers, callOptions.headers);
+    const headers = buildHeaders(resolveBodyKind(endpoint), context.headers, callOptions.headers);
     if (Result.isFailure(headers)) {
         return headers;
     }
-    const request = buildRequest(
-        endpoint,
-        validated.value,
-        buildOptions(context, callOptions, headers.value),
-    );
+    const request = buildRequest(endpoint, validated.value, {
+        ...buildOptions(context, callOptions, headers.value),
+        rawBody: callOptions.body,
+    });
     return Result.isFailure(request) ? request : sendRequest(endpoint, request.value, context.transport);
 }
 

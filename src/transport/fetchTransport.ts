@@ -26,6 +26,10 @@ async function toTransportResponse(response: Response): Promise<TransportRespons
     };
 }
 
+function isReadableStreamBody(body: unknown): body is ReadableStream<Uint8Array> {
+    return typeof body === 'object' && body !== null && typeof Reflect.get(body, 'getReader') === 'function';
+}
+
 function buildRequestInit(input: TransportRequest): RequestInit {
     const init: RequestInit = {
         method: input.method,
@@ -34,6 +38,11 @@ function buildRequestInit(input: TransportRequest): RequestInit {
 
     if (input.body !== undefined) {
         init.body = input.body;
+        if (isReadableStreamBody(input.body)) {
+            // Required by undici for streaming request bodies; ignored by browsers.
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+            (init as RequestInit & { duplex: 'half' }).duplex = 'half';
+        }
     }
 
     if (input.signal !== undefined) {

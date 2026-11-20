@@ -98,15 +98,15 @@ literals while applying compile-time contract checks.
 
 ### Endpoint fields
 
-| Field          | Required      | Meaning                                                              |
-| -------------- | ------------- | -------------------------------------------------------------------- |
-| `method`       | yes           | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`        |
-| `path`         | yes           | Relative endpoint path; `:name` segments declare path parameters     |
-| `params`       | conditionally | Schema for path parameters; required when `path` contains parameters |
-| `query`        | no            | Schema for query-string values                                       |
-| `queryOptions` | no            | Endpoint-level query serialization override; requires `query`        |
-| `body`         | no            | Schema for a JSON request body                                       |
-| `response`     | yes           | Schema for the decoded successful response                           |
+| Field          | Required      | Meaning                                                                 |
+| -------------- | ------------- | ----------------------------------------------------------------------- |
+| `method`       | yes           | `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, or `OPTIONS`           |
+| `path`         | yes           | Relative endpoint path; `:name` segments declare path parameters        |
+| `params`       | conditionally | Schema for path parameters; required when `path` contains parameters    |
+| `query`        | no            | Schema for query-string values                                          |
+| `queryOptions` | no            | Endpoint-level query serialization override; requires `query`           |
+| `body`         | no            | Schema for a JSON body, or `multipartBody()`/`streamBody()` for uploads |
+| `response`     | yes           | Schema for the decoded successful response                              |
 
 Do not include `?query` or `#fragment` in `path`. Query values belong in the `query` section.
 
@@ -306,12 +306,13 @@ The exported `ClientConfigError` union covers invalid client options, and `ApiDe
 covers invalid endpoint definitions. Catch these at the application's composition boundary only
 when configuration is dynamic or you can provide a meaningful startup diagnostic. Once creation
 succeeds, the API is guaranteed to be usable; endpoint methods return `Result` values for expected
-runtime failures as described in section 7.
+runtime failures as described in section 8.
 
 ### Headers
 
-Requests start with `accept: application/json`; requests with a body also start with
-`content-type: application/json`.
+Requests start with `accept: application/json`; requests with a JSON body also start with
+`content-type: application/json`. Multipart and stream bodies carry no default content type (see
+section 7).
 
 | Layer       | Meaning                                           |
 | ----------- | ------------------------------------------------- |
@@ -511,7 +512,84 @@ interceptors should stop when the signal is aborted.
 Timeout configuration is not built in yet. Applications can pass `AbortSignal.timeout(ms)`, or use
 `AbortSignal.any()` when a timeout and caller-controlled cancellation must be combined.
 
-## 7. Handle results and errors
+## 7. Upload files
+
+Endpoints that transfer files or binary data declare their body with `multipartBody()` or
+`streamBody()` instead of a schema:
+
+```ts
+import { defineApi, multipartBody, streamBody } from '@wutwind/ezzy-api';
+
+export const uploadApiDefinition = defineApi({
+    uploadAvatar: {
+        method: 'POST',
+        path: '/users/:id/avatar',
+        params: UserParamsSchema,
+        body: multipartBody(),
+        response: AvatarSchema,
+    },
+    uploadBackup: {
+        method: 'POST',
+        path: '/backups',
+        body: streamBody(),
+        response: BackupSchema,
+    },
+});
+```
+
+### Multipart bodies
+
+`multipartBody()` accepts a `FormData` instance or a plain record of fields. Record values may be
+strings, numbers, booleans, or `Blob`s; numbers and booleans are converted with `String()`, and
+`undefined` fields are skipped. Blobs pass by reference, so large files are not copied:
+
+```ts
+const result = await uploadApi.uploadAvatar({
+    params: { id: userId },
+    body: {
+        title: 'avatar',
+        file: new Blob([bytes], { type: 'image/png' }),
+    },
+});
+```
+
+Fetch sets `content-type: multipart/form-data; boundary=...` itself. Do not set a multipart
+content type manually without a boundary. Use `FormData` directly when you need repeated field
+names or explicit file names:
+
+```ts
+const form = new FormData();
+form.append('file', new Blob([bytes]), 'avatar.png');
+form.append('tag', 'a');
+form.append('tag', 'b');
+
+await uploadApi.uploadAvatar({ params: { id: userId }, body: form });
+```
+
+### Stream bodies
+
+`streamBody()` accepts a `ReadableStream<Uint8Array>` for chunked upload:
+
+```ts
+const result = await uploadApi.uploadBackup({
+    body: createBackupStream(),
+    headers: { 'content-type': 'application/octet-stream' },
+});
+```
+
+There is no default content type for stream bodies; supply the media type through headers. The
+request is sent chunked, without `Content-Length`. If you have the full bytes in memory, wrap them
+explicitly:
+
+```ts
+body: new Blob([bytes]).stream();
+```
+
+Both upload kinds support cancellation through the usual `signal` call option. An invalid body —
+for example a missing multipart body or raw bytes instead of a stream — resolves to a
+`RequestValidationError` for the `body` section without calling Fetch.
+
+## 8. Handle results and errors
 
 ```ts
 import { Result } from '@praha/byethrow';
@@ -581,7 +659,7 @@ validation reasons are:
 HTTP error bodies remain raw strings. Non-2xx responses are not decoded or checked against the
 success response schema.
 
-## 8. Handle empty successful responses
+## 9. Handle empty successful responses
 
 Successful responses with an empty body are passed to the response schema as `undefined`. Declare
 that explicitly for `204`, `205`, `HEAD`, or endpoints that return an empty `200`:
@@ -598,7 +676,7 @@ deleteUser: {
 If the response schema requires an object, an empty successful response becomes a
 `ResponseValidationError` with reason `SchemaValidation`. The schema is never bypassed.
 
-## 9. Inject Fetch for tests
+## 10. Inject Fetch for tests
 
 Use the `fetch` option for deterministic tests:
 
@@ -616,7 +694,7 @@ const api = createApi(userApiDefinition, {
 The injected function receives the final serialized URL and `RequestInit`, including the
 `AbortSignal` when provided.
 
-## 10. Supply a custom transport
+## 11. Supply a custom transport
 
 Use a custom transport when Fetch is insufficient, for example for browser upload progress through
 `XMLHttpRequest`:
@@ -650,29 +728,30 @@ const client = createApiClient({
 Pass either `fetch` or `transport`, never both. Interceptors wrap a custom transport in exactly the
 same way as the built-in Fetch transport.
 
-The current `TransportRequest.body` and `TransportResponse.body` are strings. Multipart bodies,
-binary responses, streaming, and transfer-progress callbacks are intentionally not part of the
-current public runtime contract yet.
+The current `TransportRequest.body` is a `string`, `FormData`, or `ReadableStream<Uint8Array>`;
+`TransportResponse.body` remains a string. Binary responses, streaming responses, and
+transfer-progress callbacks are intentionally not part of the current public runtime contract yet.
 
-## 11. URL and JSON behavior
+## 12. URL and body behavior
 
 - `baseUrl` may be absolute (`https://api.example.com`) or relative (`/api`).
 - A trailing slash on `baseUrl` and a leading slash on `path` are normalized at their boundary.
 - `baseUrl` and endpoint paths must not contain a query string or fragment.
 - Path values are encoded with `encodeURIComponent`.
 - Query keys and values are percent-encoded.
-- Declared request bodies are serialized with `JSON.stringify`.
-- A JSON body adds `content-type: application/json`.
+- Schema-declared request bodies are serialized with `JSON.stringify`.
+- A JSON body adds `content-type: application/json`; multipart and stream bodies do not.
+- Multipart bodies are sent as `multipart/form-data`; Fetch sets the boundary content type.
+- Stream bodies are sent chunked, without `Content-Length`.
 - Every non-empty successful response is parsed as JSON before schema validation.
 - Every non-2xx status becomes `HttpError`, including redirects returned to the transport.
 
-## 12. Current limitations
+## 13. Current limitations
 
 The current version does not provide first-class configuration for:
 
 - timeouts;
 - built-in retry or authentication policies;
-- multipart and binary request bodies;
 - upload/download progress;
 - streaming responses;
 - optional path parameters, wildcards, or catch-all paths.

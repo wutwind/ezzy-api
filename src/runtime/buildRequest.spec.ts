@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { Result } from '@praha/byethrow';
 import * as v from 'valibot';
 
+import { multipartBody, streamBody } from '../core/bodyKinds.ts';
 import { buildRequest } from './buildRequest.ts';
 
 const response = v.object({ ok: v.boolean() });
@@ -106,6 +107,114 @@ describe('buildRequest', () => {
 
         // @ts-expect-error validated output deliberately violates the endpoint schema
         const result = buildRequest(endpoint, { body: cyclic }, { baseUrl: '', headers: {} });
+
+        assert.equal(Result.isFailure(result), true);
+        if (Result.isFailure(result)) {
+            assert.equal(result.error.section, 'body');
+        }
+    });
+
+    it('passes FormData through for a multipart body', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartBody(),
+            response,
+        } as const;
+        const form = new FormData();
+        form.append('title', 'avatar');
+
+        const result = buildRequest(
+            endpoint,
+            {},
+            { baseUrl: '/api', headers: { accept: 'application/json' }, rawBody: form },
+        );
+
+        const request = Result.unwrap(result);
+        assert.equal(request.body, form);
+        assert.equal(Object.hasOwn(request, 'signal'), false);
+    });
+
+    it('converts a record for a multipart body', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartBody(),
+            response,
+        } as const;
+
+        const result = buildRequest(
+            endpoint,
+            {},
+            {
+                baseUrl: '/api',
+                headers: { accept: 'application/json' },
+                rawBody: { title: 'avatar', order: 1 },
+            },
+        );
+
+        const request = Result.unwrap(result);
+        assert.ok(request.body instanceof FormData);
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+        assert.equal((request.body as FormData).get('title'), 'avatar');
+    });
+
+    it('maps a missing multipart body to RequestValidationError', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartBody(),
+            response,
+        } as const;
+
+        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {} });
+
+        assert.equal(Result.isFailure(result), true);
+        if (Result.isFailure(result)) {
+            assert.equal(result.error.type, 'RequestValidationError');
+            assert.equal(result.error.section, 'body');
+        }
+    });
+
+    it('maps invalid multipart values to RequestValidationError', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: multipartBody(),
+            response,
+        } as const;
+
+        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {}, rawBody: { field: null } });
+
+        assert.equal(Result.isFailure(result), true);
+        if (Result.isFailure(result)) {
+            assert.equal(result.error.section, 'body');
+        }
+    });
+
+    it('passes a ReadableStream through for a stream body', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: streamBody(),
+            response,
+        } as const;
+        const stream = new Blob(['bytes']).stream();
+
+        const result = buildRequest(endpoint, {}, { baseUrl: '/api', headers: {}, rawBody: stream });
+
+        assert.equal(Result.unwrap(result).body, stream);
+    });
+
+    it('maps a non-stream stream body to RequestValidationError', () => {
+        const endpoint = {
+            method: 'POST',
+            path: '/upload',
+            body: streamBody(),
+            response,
+        } as const;
+
+        const result = buildRequest(endpoint, {}, { baseUrl: '', headers: {}, rawBody: new Uint8Array([1]) });
 
         assert.equal(Result.isFailure(result), true);
         if (Result.isFailure(result)) {

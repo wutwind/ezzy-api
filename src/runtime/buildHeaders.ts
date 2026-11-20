@@ -10,6 +10,9 @@ import type { TransportHeaders } from '../transport/types.ts';
 const HEADER_NAME = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u;
 const INVALID_HEADER_VALUE = /[\0\r\n]/u;
 
+/** Which body kind the headers are built for; drives the default content-type. */
+export type RequestBodyKind = 'none' | 'json' | 'multipart' | 'stream';
+
 interface InvalidHeaderCause {
     readonly name: string;
     readonly value: string | undefined;
@@ -43,13 +46,13 @@ function applyHeaders(
 }
 
 export function buildHeaders(
-    hasBody: boolean,
+    bodyKind: RequestBodyKind,
     ...layers: readonly (HeaderOptions | undefined)[]
 ): Result.Result<TransportHeaders, RequestValidationError> {
     try {
         // Kept separate so this public boundary only maps unexpected platform/proxy failures.
         // oxlint-disable-next-line no-use-before-define
-        const result = resolveHeaders(hasBody, layers);
+        const result = resolveHeaders(bodyKind, layers);
         return Result.isFailure(result)
             ? Result.fail(createRequestConstructionError('headers', result.error))
             : result;
@@ -59,13 +62,15 @@ export function buildHeaders(
 }
 
 function resolveHeaders(
-    hasBody: boolean,
+    bodyKind: RequestBodyKind,
     layers: readonly (HeaderOptions | undefined)[],
 ): Result.Result<TransportHeaders, InvalidHeaderCause> {
     const headers = new Map([['accept', 'application/json']]);
-    if (hasBody) {
+    if (bodyKind === 'json') {
         headers.set('content-type', 'application/json');
     }
+    // Multipart and stream bodies carry no default content-type.
+    // Fetch adds the multipart boundary, and a stream's media type cannot be inferred.
     for (const layer of layers) {
         if (layer != null) {
             const result = applyHeaders(headers, layer);

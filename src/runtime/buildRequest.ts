@@ -1,5 +1,6 @@
 import { Result } from '@praha/byethrow';
 
+import { type BodyKind, isBodyKind } from '../core/bodyKinds.ts';
 import type { AnyEndpoint, QueryOptions } from '../core/types.ts';
 import { buildPath, type PathValues } from '../path/buildPath.ts';
 import { serializeQuery, type QueryValues } from '../query/serializeQuery.ts';
@@ -11,12 +12,15 @@ import type { ValidatedEndpointRequest } from '../schema/validateRequest.ts';
 import type { TransportHeaders, TransportRequest } from '../transport/types.ts';
 import { createOptions, type OptionsBuilder } from './createOptions.ts';
 import { serializeJsonBody } from './serializeJsonBody.ts';
+import { serializeMultipartBody } from './serializeMultipartBody.ts';
 
 export interface BuildRequestOptions {
     readonly baseUrl: string;
     readonly queryOptions?: QueryOptions;
     readonly signal?: AbortSignal;
     readonly headers: TransportHeaders;
+    /** Call-time body value used for marker-declared (multipart/stream) bodies. */
+    readonly rawBody?: unknown;
 }
 
 function joinUrl(baseUrl: string, path: string): string {
@@ -60,15 +64,26 @@ function buildValidatedQuery(
         : result;
 }
 
-function addValidatedBody(
+function buildUrl(
     endpoint: AnyEndpoint,
+    request: Readonly<Record<string, unknown>>,
+    options: BuildRequestOptions,
+): Result.Result<string, RequestValidationError> {
+    const path = buildValidatedPath(endpoint, request);
+    if (Result.isFailure(path)) {
+        return path;
+    }
+
+    const query = buildValidatedQuery(endpoint, request, options.queryOptions ?? {});
+    return Result.isFailure(query)
+        ? query
+        : Result.succeed(appendQuery(joinUrl(options.baseUrl, path.value), query.value));
+}
+
+function addJsonBody(
     request: Readonly<Record<string, unknown>>,
     transportRequest: TransportRequest,
 ): Result.Result<TransportRequest, RequestValidationError> {
-    if (endpoint.body === undefined) {
-        return Result.succeed(transportRequest);
-    }
-
     const result = serializeJsonBody(request.body);
     if (Result.isFailure(result)) {
         return Result.fail(createRequestConstructionError('body', result.error));
@@ -80,12 +95,59 @@ function addValidatedBody(
     });
 }
 
+function isReadableStreamBody(value: unknown): value is ReadableStream<Uint8Array> {
+    return (
+        typeof value === 'object' && value !== null && typeof Reflect.get(value, 'getReader') === 'function'
+    );
+}
+
+function addMarkerBody(
+    kind: BodyKind,
+    rawBody: unknown,
+    transportRequest: TransportRequest,
+): Result.Result<TransportRequest, RequestValidationError> {
+    if (kind.kind === 'multipart') {
+        const result = serializeMultipartBody(rawBody);
+        return Result.isFailure(result)
+            ? Result.fail(createRequestConstructionError('body', result.error))
+            : Result.succeed({ ...transportRequest, body: result.value });
+    }
+
+    if (!isReadableStreamBody(rawBody)) {
+        return Result.fail(
+            createRequestConstructionError(
+                'body',
+                'expected a ReadableStream<Uint8Array> body; wrap buffered data in new Blob([bytes]).stream()',
+            ),
+        );
+    }
+    return Result.succeed({ ...transportRequest, body: rawBody });
+}
+
 function withSignal(signal: AbortSignal | undefined): OptionsBuilder<TransportRequest> {
     return (options) => {
         if (signal !== undefined) {
             options.signal = signal;
         }
     };
+}
+
+function buildTransportRequest(
+    endpoint: AnyEndpoint,
+    request: Readonly<Record<string, unknown>>,
+    options: BuildRequestOptions,
+): Result.Result<TransportRequest, RequestValidationError> {
+    const url = buildUrl(endpoint, request, options);
+    if (Result.isFailure(url)) {
+        return url;
+    }
+
+    return Result.succeed(
+        createOptions<TransportRequest>(
+            { url: url.value, method: endpoint.method, headers: options.headers },
+            withSignal(options.signal),
+        ),
+    );
 }
 
 /** Builds the internal transport request from schema-validated request outputs. */
@@ -97,20 +159,18 @@ export function buildRequest<TEndpoint extends AnyEndpoint>(
     // ValidatedEndpointRequest is a schema-derived record of request sections.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const requestRecord = request as Readonly<Record<string, unknown>>;
-    const path = buildValidatedPath(endpoint, requestRecord);
-    if (Result.isFailure(path)) {
-        return path;
+
+    const transportRequest = buildTransportRequest(endpoint, requestRecord, options);
+    if (Result.isFailure(transportRequest)) {
+        return transportRequest;
     }
 
-    const query = buildValidatedQuery(endpoint, requestRecord, options.queryOptions ?? {});
-    if (Result.isFailure(query)) {
-        return query;
+    const { body } = endpoint;
+    if (body === undefined) {
+        return Result.succeed(transportRequest.value);
     }
-
-    const url = appendQuery(joinUrl(options.baseUrl, path.value), query.value);
-    const transportRequest = createOptions<TransportRequest>(
-        { url, method: endpoint.method, headers: options.headers },
-        withSignal(options.signal),
-    );
-    return addValidatedBody(endpoint, requestRecord, transportRequest);
+    if (isBodyKind(body)) {
+        return addMarkerBody(body, options.rawBody, transportRequest.value);
+    }
+    return addJsonBody(requestRecord, transportRequest.value);
 }

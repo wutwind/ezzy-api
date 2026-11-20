@@ -5,6 +5,13 @@ import type { ApiError } from '../errors/apiError.ts';
 import type { FetchImplementation } from '../transport/fetchTransport.ts';
 import type { TransportFailure, TransportInterceptor } from '../transport/interceptors.ts';
 import type { Transport } from '../transport/types.ts';
+import type {
+    BodyKind,
+    MultipartBody,
+    MultipartBodyInput,
+    StreamBody,
+    StreamBodyInput,
+} from './bodyKinds.ts';
 
 export type Schema = StandardSchemaV1;
 
@@ -76,7 +83,7 @@ export interface EndpointDefinition<
     TPath extends string,
     TParams extends Schema | undefined = undefined,
     TQuery extends Schema | undefined = undefined,
-    TBody extends Schema | undefined = undefined,
+    TBody extends Schema | BodyKind | undefined = undefined,
     TResponse extends Schema = Schema,
 > {
     method: HttpMethod;
@@ -85,6 +92,7 @@ export interface EndpointDefinition<
     params?: ValidParamsSchema<TPath, TParams>;
     query?: TQuery;
     queryOptions?: TQuery extends Schema ? QueryOptions : never;
+    /** A schema declares a JSON body; multipartBody() and streamBody() declare binary bodies. */
     body?: TBody;
 
     /** Response schema is mandatory. */
@@ -104,7 +112,7 @@ export interface AnyEndpoint {
     params?: Schema;
     query?: Schema;
     queryOptions?: QueryOptions;
-    body?: Schema;
+    body?: Schema | BodyKind;
     response: Schema;
 }
 
@@ -148,12 +156,27 @@ type RequestPart<Key extends PropertyKey, Value> = [Value] extends [never]
       ? { [K in Key]?: Value }
       : { [K in Key]: Value };
 
+type EndpointBodyInput<TBody> = TBody extends Schema
+    ? SchemaInput<TBody>
+    : TBody extends MultipartBody
+      ? MultipartBodyInput
+      : TBody extends StreamBody
+        ? StreamBodyInput
+        : never;
+
+// Marker-declared bodies are required at the type level; a missing multipart or stream body fails at runtime.
+type EndpointBodyRequest<TBody> = TBody extends Schema
+    ? RequestPart<'body', SchemaInput<TBody>>
+    : TBody extends BodyKind
+      ? { body: EndpointBodyInput<TBody> }
+      : {};
+
 export type EndpointRequest<TEndpoint extends AnyEndpoint> = RequestPart<
     'params',
     TEndpoint['params'] extends Schema ? SchemaInput<TEndpoint['params']> : PathParams<TEndpoint['path']>
 > &
     RequestPart<'query', TEndpoint['query'] extends Schema ? SchemaInput<TEndpoint['query']> : never> &
-    RequestPart<'body', TEndpoint['body'] extends Schema ? SchemaInput<TEndpoint['body']> : never> &
+    EndpointBodyRequest<TEndpoint['body']> &
     CallOptions;
 
 export type EndpointResponse<TEndpoint extends AnyEndpoint> = SchemaOutput<TEndpoint['response']>;
