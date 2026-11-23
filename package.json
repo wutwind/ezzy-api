@@ -1,6 +1,6 @@
 {
     "name": "@wutwind/ezzy-api",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Type-safe HTTP client built from runtime schema contracts",
     "keywords": [
         "api",

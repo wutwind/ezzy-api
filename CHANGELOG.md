@@ -7,7 +7,7 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-11-20
+## [0.4.0] - 2026-11-23
 
 ### Added
 
@@ -17,6 +17,11 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   known, the request includes `Content-Length` of the whole body; otherwise the body is chunked.
   File bytes are pulled as the body is sent and are not buffered. A source stream that errors or
   is cancelled fails the call with `TransportError` or `AbortError`.
+
+## [0.3.0] - 2026-11-20
+
+### Added
+
 - File upload endpoints: `body: multipartBody()` accepts `FormData` or a record of
   `string | number | boolean | Blob` fields, and `body: streamBody()` accepts a
   `ReadableStream<Uint8Array>` for chunked upload. Non-finite numbers are rejected.
@@ -52,3 +57,4 @@ uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 [0.1.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.1.0
 [0.2.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.2.0
 [0.3.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.3.0
+[0.4.0]: https://github.com/wutwind/ezzy-api/releases/tag/v0.4.0
