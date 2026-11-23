@@ -204,6 +204,45 @@ describe('createApi', () => {
         }
     });
 
+    it('rejects a file stream reused in multipart fields before calling the transport', async () => {
+        let fetchCalls = 0;
+        const api = createApi(
+            defineApi({
+                upload: {
+                    method: 'POST',
+                    path: '/upload',
+                    body: multipartStreamBody(),
+                    response: v.unknown(),
+                },
+            }),
+            {
+                baseUrl: '/api',
+                fetch: () => {
+                    fetchCalls += 1;
+                    return Promise.resolve(new Response('{}'));
+                },
+            },
+        );
+
+        for (const size of [undefined, 3]) {
+            const stream = new Blob(['abc']).stream();
+            const file = { stream, filename: 'a.txt', type: 'text/plain', size };
+            const result = await api.upload({
+                body: [
+                    { name: 'first', value: file },
+                    { name: 'second', value: file },
+                ],
+            });
+            assert.equal(Result.isFailure(result), true);
+            if (Result.isFailure(result)) {
+                assert.equal(result.error.type, 'RequestValidationError');
+                assert.equal(result.error.section, 'body');
+            }
+            assert.equal(stream.locked, false);
+        }
+        assert.equal(fetchCalls, 0);
+    });
+
     it('rejects endpoint definitions with a body that is neither a schema nor a marker', () => {
         const invalidBodies: readonly unknown[] = [42, 'json', {}, null];
         for (const body of invalidBodies) {

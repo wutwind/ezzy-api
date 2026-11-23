@@ -200,15 +200,30 @@ function prepareField(
     return prepareFieldValue(boundary, name, Reflect.get(field, 'value'));
 }
 
+function registerStream(part: PreparedPart, streams: Set<ReadableStream<Uint8Array>>): boolean {
+    if (part.kind !== 'file') {
+        return true;
+    }
+    if (streams.has(part.stream)) {
+        return false;
+    }
+    streams.add(part.stream);
+    return true;
+}
+
 function prepareParts(
     fields: readonly unknown[],
     boundary: string,
 ): Result.Result<readonly PreparedPart[], MultipartStreamBodySerializationError> {
     const parts: PreparedPart[] = [];
+    const streams = new Set<ReadableStream<Uint8Array>>();
     for (const field of fields) {
         const prepared = prepareField(boundary, field);
         if (Result.isFailure(prepared)) {
             return Result.fail(prepared.error);
+        }
+        if (!registerStream(prepared.value, streams)) {
+            return Result.fail(invalid('each multipart file must use a distinct stream'));
         }
         parts.push(prepared.value);
     }

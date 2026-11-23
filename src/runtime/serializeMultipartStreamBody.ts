@@ -80,8 +80,13 @@ async function cancelUnread(
 }
 
 async function failPull(context: PullContext, reason: unknown): Promise<void> {
-    await cancelUnread(context.parts, context.cursor, reason);
     context.controller.error(reason);
+    // A source may never finish cancelling; it must not delay the original error.
+    try {
+        await cancelUnread(context.parts, context.cursor, reason);
+    } catch {
+        // Cleanup must not replace the source error.
+    }
 }
 
 function openReader(cursor: StreamCursor, part: PreparedFilePart): unknown {

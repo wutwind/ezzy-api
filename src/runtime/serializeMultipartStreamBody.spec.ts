@@ -280,6 +280,48 @@ describe('serializeMultipartStreamBody', () => {
         await assert.rejects(readBytes(long.stream), /declared size of 1/u);
     });
 
+    it(
+        'reports the source error even if cancelling an unread file never finishes',
+        { timeout: 1000 },
+        async () => {
+            const sourceError = new Error('source broke');
+            let cancelReason: unknown;
+            const serialized = Result.unwrap(
+                serializeMultipartStreamBody([
+                    {
+                        name: 'broken',
+                        value: {
+                            stream: new ReadableStream<Uint8Array>({
+                                start(controller) {
+                                    controller.error(sourceError);
+                                },
+                            }),
+                            filename: 'broken.bin',
+                            type: 'application/octet-stream',
+                        },
+                    },
+                    {
+                        name: 'unread',
+                        value: {
+                            stream: new ReadableStream<Uint8Array>({
+                                cancel(reason) {
+                                    cancelReason = reason;
+                                    return new Promise<void>(() => undefined);
+                                },
+                            }),
+                            filename: 'unread.bin',
+                            type: 'application/octet-stream',
+                        },
+                    },
+                ]),
+            );
+            const reader = serialized.stream.getReader();
+            await reader.read();
+            await assert.rejects(reader.read(), (error: unknown) => error === sourceError);
+            assert.equal(cancelReason, sourceError);
+        },
+    );
+
     it('rejects a missing or mistyped body before reading file streams', () => {
         let pulls = 0;
         const source = new ReadableStream<Uint8Array>({
