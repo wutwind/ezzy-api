@@ -42,7 +42,7 @@ async function settle(operation: Promise<void>): Promise<void> {
     try {
         await operation;
     } catch {
-        // The source stream has already settled.
+        // Cancellation errors do not affect the multipart result.
     }
 }
 
@@ -255,7 +255,6 @@ function createMultipartStream(prepared: PreparedMultipartStream): ReadableStrea
     );
 }
 
-/** Encodes multipart framing around caller-owned file streams without buffering those streams. */
 export function serializeMultipartStreamBody(
     body: unknown,
 ): Result.Result<SerializedMultipartStreamBody, MultipartStreamBodySerializationError> {

@@ -12,7 +12,6 @@ export type {
 
 const stringifyJson: (value: unknown) => string | undefined = JSON.stringify;
 
-/** Serializes a schema-validated request body as JSON. */
 export function serializeJsonBody(body: unknown): Result.Result<string, JsonBodySerializationError> {
     try {
         const serialized = stringifyJson(body);

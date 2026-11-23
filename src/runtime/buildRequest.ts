@@ -178,7 +178,6 @@ function buildTransportRequest(
     );
 }
 
-/** Builds the internal transport request from schema-validated request outputs. */
 export function buildRequest<TEndpoint extends AnyEndpoint>(
     endpoint: TEndpoint,
     request: ValidatedEndpointRequest<TEndpoint>,

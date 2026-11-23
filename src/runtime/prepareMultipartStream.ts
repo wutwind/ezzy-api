@@ -262,7 +262,6 @@ function fieldList(body: unknown): Result.Result<readonly unknown[], MultipartSt
     return Result.succeed(body);
 }
 
-/** Validates fields and builds part headers. File streams are not read. */
 export function prepareMultipartStream(
     body: unknown,
 ): Result.Result<PreparedMultipartStream, MultipartStreamBodySerializationError> {

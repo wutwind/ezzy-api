@@ -7,7 +7,6 @@ import {
     createResponseSchemaExecutionError,
 } from '../errors/responseValidationError.ts';
 
-/** Validates decoded response data and returns the response schema output. */
 export async function validateResponse<TSchema extends Schema>(
     schema: TSchema,
     value: unknown,

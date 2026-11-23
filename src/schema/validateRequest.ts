@@ -64,7 +64,6 @@ function isSchemaBody(body: AnyEndpoint['body']): body is Schema {
     return body !== undefined && !isBodyKind(body);
 }
 
-/** Validates every declared request section and returns schema outputs. */
 export async function validateRequest<TEndpoint extends AnyEndpoint>(
     endpoint: TEndpoint,
     request: unknown = {},
