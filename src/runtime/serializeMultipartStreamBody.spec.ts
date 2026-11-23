@@ -229,16 +229,17 @@ describe('serializeMultipartStreamBody', () => {
     });
 
     it('fails the multipart stream when the source errors or breaks its declared size', async () => {
+        const brokenSource = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.error(new Error('source broke'));
+            },
+        });
         const broken = Result.unwrap(
             serializeMultipartStreamBody([
                 {
                     name: 'file',
                     value: {
-                        stream: new ReadableStream({
-                            start(controller) {
-                                controller.error(new Error('source broke'));
-                            },
-                        }),
+                        stream: brokenSource,
                         filename: 'a.bin',
                         type: 'application/octet-stream',
                     },
@@ -248,6 +249,7 @@ describe('serializeMultipartStreamBody', () => {
         const brokenReader = broken.stream.getReader();
         await brokenReader.read();
         await assert.rejects(brokenReader.read(), /source broke/u);
+        assert.equal(brokenSource.locked, false);
 
         const short = Result.unwrap(
             serializeMultipartStreamBody([
@@ -264,12 +266,13 @@ describe('serializeMultipartStreamBody', () => {
         );
         await assert.rejects(readBytes(short.stream), /expected 4/u);
 
+        const longSource = fileStream(new Uint8Array([1, 2]));
         const long = Result.unwrap(
             serializeMultipartStreamBody([
                 {
                     name: 'file',
                     value: {
-                        stream: fileStream(new Uint8Array([1, 2])),
+                        stream: longSource,
                         filename: 'a.bin',
                         type: 'application/octet-stream',
                         size: 1,
@@ -278,6 +281,70 @@ describe('serializeMultipartStreamBody', () => {
             ]),
         );
         await assert.rejects(readBytes(long.stream), /declared size of 1/u);
+        assert.equal(longSource.locked, false);
+    });
+
+    it('unlocks the active source when multipart cancellation is pending or rejects', async () => {
+        for (const cancelMode of ['reject', 'pending'] as const) {
+            let pulled: () => void = () => undefined;
+            const pullStarted = new Promise<void>((resolve) => {
+                pulled = resolve;
+            });
+            const source = new ReadableStream<Uint8Array>(
+                {
+                    pull() {
+                        pulled();
+                        return new Promise<void>(() => undefined);
+                    },
+                    cancel() {
+                        return cancelMode === 'reject'
+                            ? Promise.reject(new Error('cleanup failed'))
+                            : new Promise<void>(() => undefined);
+                    },
+                },
+                { highWaterMark: 0 },
+            );
+            const serialized = Result.unwrap(
+                serializeMultipartStreamBody([
+                    {
+                        name: 'file',
+                        value: { stream: source, filename: 'a.bin', type: 'application/octet-stream' },
+                    },
+                ]),
+            );
+            const reader = serialized.stream.getReader();
+            await reader.read();
+            const pendingRead = reader.read();
+            await pullStarted;
+            assert.equal(source.locked, true);
+            const cancellation = reader.cancel('stop');
+            assert.equal(source.locked, false);
+            assert.equal((await pendingRead).done, true);
+            if (cancelMode === 'reject') {
+                await cancellation;
+            }
+        }
+    });
+
+    it('unlocks a source even when cancellation after a size error never settles', async () => {
+        const source = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                controller.enqueue(new Uint8Array([1, 2]));
+            },
+            cancel() {
+                return new Promise<void>(() => undefined);
+            },
+        });
+        const serialized = Result.unwrap(
+            serializeMultipartStreamBody([
+                {
+                    name: 'file',
+                    value: { stream: source, filename: 'a.bin', type: 'application/octet-stream', size: 1 },
+                },
+            ]),
+        );
+        await assert.rejects(readBytes(serialized.stream), /declared size of 1/u);
+        assert.equal(source.locked, false);
     });
 
     it(

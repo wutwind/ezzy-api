@@ -72,10 +72,16 @@ async function cancelUnread(
     const { reader } = cursor;
     const active = reader === undefined ? undefined : partAt(parts, cursor.index);
     cursor.reader = undefined;
-    const pending = fileCancels({ parts, from: cursor.index, active, reason });
+    const pending: Promise<void>[] = [];
     if (reader !== undefined) {
-        pending.unshift(settle(reader.cancel(reason)));
+        try {
+            pending.push(settle(reader.cancel(reason)));
+        } finally {
+            // Cancel closes the stream synchronously, even when its underlying cleanup never settles.
+            reader.releaseLock();
+        }
     }
+    pending.push(...fileCancels({ parts, from: cursor.index, active, reason }));
     await Promise.all(pending);
 }
 
