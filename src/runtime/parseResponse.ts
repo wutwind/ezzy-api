@@ -6,6 +6,7 @@ import {
     createInvalidJsonResponseError,
 } from '../errors/responseValidationError.ts';
 import type { TransportResponse } from '../transport/types.ts';
+import { safeJsonParse } from './safeJson.ts';
 
 export type ParseResponseError = HttpError | ResponseValidationError;
 
@@ -22,9 +23,6 @@ export function parseResponse(response: TransportResponse): Result.Result<unknow
         return Result.succeed(undefined);
     }
 
-    try {
-        return Result.succeed(JSON.parse(response.body));
-    } catch (error) {
-        return Result.fail(createInvalidJsonResponseError(error));
-    }
+    const parsed = safeJsonParse(response.body);
+    return Result.isFailure(parsed) ? Result.fail(createInvalidJsonResponseError(parsed.error)) : parsed;
 }

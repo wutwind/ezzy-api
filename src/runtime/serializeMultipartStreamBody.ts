@@ -95,15 +95,15 @@ async function failPull(context: PullContext, reason: unknown): Promise<void> {
     }
 }
 
-function openReader(cursor: StreamCursor, part: PreparedFilePart): unknown {
+function openReader(cursor: StreamCursor, part: PreparedFilePart): Result.Result<void, unknown> {
     if (cursor.reader !== undefined) {
-        return undefined;
+        return Result.succeed(undefined);
     }
     try {
         cursor.reader = part.stream.getReader();
-        return undefined;
+        return Result.succeed(undefined);
     } catch (error) {
-        return error;
+        return Result.fail(error);
     }
 }
 
@@ -196,8 +196,8 @@ async function consumeChunk(
 
 async function readFileChunk(context: PullContext, part: PreparedFilePart): Promise<void> {
     const opened = openReader(context.cursor, part);
-    if (opened !== undefined) {
-        await failPull(context, opened);
+    if (Result.isFailure(opened)) {
+        await failPull(context, opened.error);
         return;
     }
     const next = await readNext(context.cursor);

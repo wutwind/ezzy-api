@@ -50,6 +50,31 @@ function blobFrom(bytes: Uint8Array): Blob {
 }
 
 describe('serializeMultipartStreamBody', () => {
+    it('preserves an undefined exception when opening a file stream', async () => {
+        const source = fileStream(new Uint8Array([1]));
+        Object.defineProperty(source, 'getReader', {
+            value: () => {
+                throw undefined;
+            },
+        });
+        const serialized = Result.unwrap(
+            serializeMultipartStreamBody([
+                {
+                    name: 'file',
+                    value: { stream: source, filename: 'a.bin', type: 'application/octet-stream' },
+                },
+            ]),
+        );
+        const reader = serialized.stream.getReader();
+        await reader.read();
+        const result = await reader.read().then(
+            () => ({ rejected: false, reason: 'unexpected success' }),
+            (reason: unknown) => ({ rejected: true, reason }),
+        );
+        assert.equal(result.rejected, true);
+        assert.equal(result.reason, undefined);
+    });
+
     it('encodes repeated fields and non-ASCII filenames', async () => {
         const serialized = Result.unwrap(
             serializeMultipartStreamBody([
