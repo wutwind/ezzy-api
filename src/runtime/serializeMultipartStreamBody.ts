@@ -99,26 +99,22 @@ function openReader(cursor: StreamCursor, part: PreparedFilePart): Result.Result
     if (cursor.reader !== undefined) {
         return Result.succeed(undefined);
     }
-    try {
-        cursor.reader = part.stream.getReader();
-        return Result.succeed(undefined);
-    } catch (error) {
-        return Result.fail(error);
-    }
+    return Result.try({
+        try: () => {
+            cursor.reader = part.stream.getReader();
+        },
+        catch: (error) => error,
+    });
 }
 
-async function readNext(
+function readNext(
     cursor: StreamCursor,
 ): Promise<Result.Result<ReadableStreamReadResult<Uint8Array>, unknown>> {
     const { reader } = cursor;
     if (reader === undefined) {
-        return Result.fail(new Error('Multipart file stream is not open'));
+        return Promise.resolve(Result.fail(new Error('Multipart file stream is not open')));
     }
-    try {
-        return Result.succeed(await reader.read());
-    } catch (error) {
-        return Result.fail(error);
-    }
+    return Result.try({ try: () => reader.read(), catch: (error) => error });
 }
 
 function releaseReader(cursor: StreamCursor): void {
