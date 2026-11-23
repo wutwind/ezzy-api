@@ -31,11 +31,10 @@ function isQueryArrayFormat(value: unknown): value is QueryArrayFormat {
 }
 
 function encodeQueryKey(key: string): Result.Result<string, SerializeQueryError> {
-    try {
-        return Result.succeed(encodeURIComponent(key));
-    } catch {
-        return Result.fail(createInvalidQueryValueError(key, 'InvalidEncoding'));
-    }
+    return Result.try({
+        try: () => encodeURIComponent(key),
+        catch: () => createInvalidQueryValueError(key, 'InvalidEncoding'),
+    });
 }
 
 function encodeQueryValue(key: string, value: unknown): Result.Result<string, SerializeQueryError> {
@@ -47,11 +46,10 @@ function encodeQueryValue(key: string, value: unknown): Result.Result<string, Se
         return Result.fail(createInvalidQueryValueError(key, 'NonFiniteNumber'));
     }
 
-    try {
-        return Result.succeed(encodeURIComponent(String(value)));
-    } catch {
-        return Result.fail(createInvalidQueryValueError(key, 'InvalidEncoding'));
-    }
+    return Result.try({
+        try: () => encodeURIComponent(String(value)),
+        catch: () => createInvalidQueryValueError(key, 'InvalidEncoding'),
+    });
 }
 
 function encodeQueryValues(

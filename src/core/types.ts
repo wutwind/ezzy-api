@@ -9,6 +9,8 @@ import type {
     BodyKind,
     MultipartBody,
     MultipartBodyInput,
+    MultipartStreamBody,
+    MultipartStreamBodyInput,
     StreamBody,
     StreamBodyInput,
 } from './bodyKinds.ts';
@@ -159,9 +161,11 @@ type EndpointBodyInput<TBody> = TBody extends Schema
     ? SchemaInput<TBody>
     : TBody extends MultipartBody
       ? MultipartBodyInput
-      : TBody extends StreamBody
-        ? StreamBodyInput
-        : never;
+      : TBody extends MultipartStreamBody
+        ? MultipartStreamBodyInput
+        : TBody extends StreamBody
+          ? StreamBodyInput
+          : never;
 
 type EndpointBodyRequest<TBody> = TBody extends Schema
     ? RequestPart<'body', SchemaInput<TBody>>

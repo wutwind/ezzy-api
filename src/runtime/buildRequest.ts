@@ -13,6 +13,10 @@ import type { TransportHeaders, TransportRequest } from '../transport/types.ts';
 import { createOptions, type OptionsBuilder } from './createOptions.ts';
 import { serializeJsonBody } from './serializeJsonBody.ts';
 import { serializeMultipartBody } from './serializeMultipartBody.ts';
+import {
+    type SerializedMultipartStreamBody,
+    serializeMultipartStreamBody,
+} from './serializeMultipartStreamBody.ts';
 
 export interface BuildRequestOptions {
     readonly baseUrl: string;
@@ -94,6 +98,20 @@ function addJsonBody(
     });
 }
 
+function withMultipartStreamHeaders(
+    headers: TransportHeaders,
+    serialized: SerializedMultipartStreamBody,
+): TransportHeaders {
+    const next = Object.fromEntries(
+        Object.entries(headers).filter(([name]) => name !== 'content-type' && name !== 'content-length'),
+    );
+    next['content-type'] = serialized.contentType;
+    if (serialized.contentLength !== undefined) {
+        next['content-length'] = String(serialized.contentLength);
+    }
+    return next;
+}
+
 function isReadableStreamBody(value: unknown): value is ReadableStream<Uint8Array> {
     return (
         typeof value === 'object' && value !== null && typeof Reflect.get(value, 'getReader') === 'function'
@@ -110,6 +128,17 @@ function addMarkerBody(
         return Result.isFailure(result)
             ? Result.fail(createRequestConstructionError('body', result.error))
             : Result.succeed({ ...transportRequest, body: result.value });
+    }
+
+    if (kind.kind === 'multipart-stream') {
+        const result = serializeMultipartStreamBody(rawBody);
+        return Result.isFailure(result)
+            ? Result.fail(createRequestConstructionError('body', result.error))
+            : Result.succeed({
+                  ...transportRequest,
+                  headers: withMultipartStreamHeaders(transportRequest.headers, result.value),
+                  body: result.value.stream,
+              });
     }
 
     if (!isReadableStreamBody(rawBody)) {
@@ -149,7 +178,6 @@ function buildTransportRequest(
     );
 }
 
-/** Builds the internal transport request from schema-validated request outputs. */
 export function buildRequest<TEndpoint extends AnyEndpoint>(
     endpoint: TEndpoint,
     request: ValidatedEndpointRequest<TEndpoint>,

@@ -6,6 +6,7 @@ import {
     createInvalidJsonResponseError,
 } from '../errors/responseValidationError.ts';
 import type { TransportResponse } from '../transport/types.ts';
+import { safeJsonParse } from './safeJson.ts';
 
 export type ParseResponseError = HttpError | ResponseValidationError;
 
@@ -13,7 +14,6 @@ function isSuccessfulStatus(status: number): boolean {
     return status >= 200 && status < 300;
 }
 
-/** Checks the HTTP status and decodes a successful JSON response. */
 export function parseResponse(response: TransportResponse): Result.Result<unknown, ParseResponseError> {
     if (!isSuccessfulStatus(response.status)) {
         return Result.fail(createHttpError(response.status, response.statusText, response.body));
@@ -23,9 +23,6 @@ export function parseResponse(response: TransportResponse): Result.Result<unknow
         return Result.succeed(undefined);
     }
 
-    try {
-        return Result.succeed(JSON.parse(response.body));
-    } catch (error) {
-        return Result.fail(createInvalidJsonResponseError(error));
-    }
+    const parsed = safeJsonParse(response.body);
+    return Result.isFailure(parsed) ? Result.fail(createInvalidJsonResponseError(parsed.error)) : parsed;
 }

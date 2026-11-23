@@ -43,12 +43,15 @@ export function buildPath(path: string, params: PathValues): Result.Result<strin
             return '';
         }
 
-        try {
-            return encodeURIComponent(value);
-        } catch {
-            encodingError = createInvalidPathParameterError(paramName, 'InvalidEncoding');
+        const encoded = Result.try({
+            try: () => encodeURIComponent(value),
+            catch: () => createInvalidPathParameterError(paramName, 'InvalidEncoding'),
+        });
+        if (Result.isFailure(encoded)) {
+            encodingError = encoded.error;
             return '';
         }
+        return encoded.value;
     });
 
     return encodingError === undefined ? Result.succeed(result) : Result.fail(encodingError);
