@@ -50,6 +50,64 @@ function blobFrom(bytes: Uint8Array): Blob {
 }
 
 describe('serializeMultipartStreamBody', () => {
+    it('continues after empty file chunks and preserves the file contents', async () => {
+        let step = 0;
+        const source = new ReadableStream<Uint8Array>(
+            {
+                pull(controller) {
+                    if (step++ < 2) {
+                        controller.enqueue(new Uint8Array());
+                    } else {
+                        controller.enqueue(textEncoder.encode('file'));
+                        controller.close();
+                    }
+                },
+            },
+            { highWaterMark: 0 },
+        );
+        const serialized = Result.unwrap(
+            serializeMultipartStreamBody([
+                {
+                    name: 'file',
+                    value: { stream: source, filename: 'a.txt', type: 'text/plain', size: 4 },
+                },
+            ]),
+        );
+        const form = await parseForm(serialized.contentType, serialized.stream);
+        const file = form.get('file');
+        assert.ok(file instanceof File);
+        assert.equal(await file.text(), 'file');
+    });
+
+    it('allows cancellation after an empty file chunk', async () => {
+        let cancelled = false;
+        const source = new ReadableStream<Uint8Array>(
+            {
+                pull(controller) {
+                    controller.enqueue(new Uint8Array());
+                },
+                cancel() {
+                    cancelled = true;
+                },
+            },
+            { highWaterMark: 0 },
+        );
+        const serialized = Result.unwrap(
+            serializeMultipartStreamBody([
+                {
+                    name: 'file',
+                    value: { stream: source, filename: 'a.bin', type: 'application/octet-stream' },
+                },
+            ]),
+        );
+        const reader = serialized.stream.getReader();
+        await reader.read();
+        assert.equal((await reader.read()).value?.byteLength, 0);
+        await reader.cancel();
+        assert.equal(cancelled, true);
+        assert.equal(source.locked, false);
+    });
+
     it('preserves an undefined exception when opening a file stream', async () => {
         const source = fileStream(new Uint8Array([1]));
         Object.defineProperty(source, 'getReader', {

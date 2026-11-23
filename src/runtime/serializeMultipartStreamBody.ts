@@ -162,9 +162,6 @@ function acceptedBytes(part: PreparedFilePart, sent: number, value: unknown): Ui
 }
 
 function enqueueBytes(context: PullContext, bytes: Uint8Array): void {
-    if (bytes.byteLength === 0) {
-        return;
-    }
     context.controller.enqueue(bytes);
     context.cursor.sent += bytes.byteLength;
 }
